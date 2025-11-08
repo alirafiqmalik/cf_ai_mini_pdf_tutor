@@ -1,5 +1,5 @@
 {
-	"name": "temp",
+	"name": "cf_ai_mini_pdf_tutor",
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
@@ -14,5 +14,9 @@
 		"typescript": "^5.5.2",
 		"vitest": "~3.2.0",
 		"wrangler": "^4.46.0"
+	},
+	"dependencies": {
+		"ai": "^5.0.89",
+		"workers-ai-provider": "^2.0.0"
 	}
 }

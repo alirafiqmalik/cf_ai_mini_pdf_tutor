@@ -1,0 +1,51 @@
+
+[
+	{
+		"id": "mcq-001",
+		"question": "What is the primary role of OCR (Optical Character Recognition) in a PDF tutoring system?",
+		"options": [
+			"To compress PDF files",
+			"To extract machine-readable text from scanned images",
+			"To translate text into multiple languages",
+			"To generate summaries of PDF content"
+		],
+		"correct_option": 1,
+		"explanation": "OCR converts scanned images of text into machine-readable text, enabling search and NLP downstream."
+	},
+	{
+		"id": "mcq-002",
+		"question": "In information retrieval, which metric measures the fraction of retrieved documents that are relevant?",
+		"options": [
+			"Recall",
+			"Precision",
+			"F1 score",
+			"MAP (Mean Average Precision)"
+		],
+		"correct_option": 1,
+		"explanation": "Precision = relevant retrieved / total retrieved; it measures exactness of retrieval."
+	},
+	{
+		"id": "mcq-003",
+		"question": "You have a passage and four candidate answers. Which technique most directly helps a system choose the best answer by matching semantic meaning rather than exact words?",
+		"options": [
+			"Bag-of-words matching",
+			"Character n-gram overlap",
+			"Vector embeddings and cosine similarity",
+			"Exact string equality"
+		],
+		"correct_option": 2,
+		"explanation": "Embeddings capture semantic similarity and cosine similarity scores measure closeness in vector space."
+	},
+	{
+		"id": "mcq-004",
+		"question": "Which of the following is a common loss function used for classification problems in deep learning?",
+		"options": [
+			"Mean Squared Error",
+			"Cross-Entropy Loss",
+			"KL Divergence for reconstruction",
+			"L1 Regularization"
+		],
+		"correct_option": 1,
+		"explanation": "Cross-entropy (a.k.a. log loss) is commonly used for classification tasks."
+	}
+]
