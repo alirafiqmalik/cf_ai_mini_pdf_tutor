@@ -41,5 +41,5 @@
 		]
 	},
 	"exclude": ["test"],
-	"include": ["arch/worker-configuration.d.ts", "src/**/*.ts", "arch/index.ts", "arch/arch_index.ts"]
+	"include": ["src/**/*.ts"]
 }

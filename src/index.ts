@@ -1,12 +1,14 @@
-import { Env, ChatMessage } from "./types";
+// import { Env, ChatMessage } from "types";
 
 // Model ID for Workers AI model
 // https://developers.cloudflare.com/workers-ai/models/
-const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+// const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 // // Default system prompt
 // const SYSTEM_PROMPT =
 // 	"";
+
+
 
 
 interface MCQQuestion {
