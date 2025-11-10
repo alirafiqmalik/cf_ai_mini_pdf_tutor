@@ -1,3 +1,13 @@
+import { Env, ChatMessage } from "./types";
+
+// Model ID for Workers AI model
+// https://developers.cloudflare.com/workers-ai/models/
+const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+// // Default system prompt
+// const SYSTEM_PROMPT =
+// 	"";
+
 
 interface MCQQuestion {
     id: number;
@@ -108,7 +118,7 @@ const routes: Route[] = [
 		{
 		pattern: /^\/get-pdf\/.+$/,
 		method: 'GET',
-		handler: handleFileServe
+		handler: handleGetPdf
 	},
 	// {
 	// 	pattern: /^\/temp\/.+$/,
@@ -347,17 +357,18 @@ async function onPdfUploadTrigger(
 	ctx: ExecutionContext
 ): Promise<void> {
 	try {
-		console.log('='.repeat(50));
-		console.log('Trigger for file upload executed');
-		console.log('='.repeat(50));
-		console.log(`Filename: ${filename}`);
-		console.log(`Original Name: ${metadata.originalName}`);
-		console.log(`File Size: ${metadata.size} bytes`);
-		console.log(`Timestamp: ${new Date(metadata.timestamp).toISOString()}`);
-		console.log('='.repeat(50));
+		// console.log('='.repeat(50));
+		// console.log('Trigger for file upload executed');
+		// console.log('='.repeat(50));
+		// console.log(`Filename: ${filename}`);
+		// console.log(`Original Name: ${metadata.originalName}`);
+		// console.log(`File Size: ${metadata.size} bytes`);
+		// console.log(`Timestamp: ${new Date(metadata.timestamp).toISOString()}`);
+		// console.log('='.repeat(50));
+		
 		
 		// TODO: Add custom post-upload processing logic here
-		// Example: Extract text, generate thumbnails, run AI analysis, etc.
+		
 		
 	} catch (error) {
 		console.error('Error in upload trigger:', error);
@@ -447,7 +458,7 @@ async function handlePdfUpload(
 }
 
 
-async function handleFileServe(
+async function handleGetPdf(
 	request: Request,
 	env: Env,
 	ctx: ExecutionContext,
