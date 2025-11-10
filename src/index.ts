@@ -140,6 +140,11 @@ const routes: Route[] = [
 		method: 'GET',
 		handler: handleRenderMcqs
 	},
+	{
+		pattern: /^\/get-transcript$/,
+		method: 'GET',
+		handler: handleGetTranscript
+	},
 ];
 
 
@@ -173,34 +178,34 @@ async function handleRenderMcqs(
     corsHeaders: Record<string, string>
 ): Promise<Response> {
     try {
-        // Parse request body to get filename if provided
-        let filename: string | null = null;
+        const url = new URL(request.url);
         
-        if (request.body) {
-            try {
-                const data = await request.json() as { filename?: string };
-                filename = data.filename || null;
-            } catch {
-                // Empty body or invalid JSON, continue without filename
-            }
+        // Get page number from query parameter
+        const pageParam = url.searchParams.get('page');
+        const pageNumber = pageParam ? parseInt(pageParam, 10) : 1;
+
+        // Validate page number
+        if (isNaN(pageNumber) || pageNumber < 1) {
+            return createJsonResponse(
+                { error: 'Invalid page number' },
+                400,
+                corsHeaders
+            );
         }
 
-        // If no filename provided, get the most recent uploaded file
-        if (!filename && fileMetadata.size > 0) {
+        // Get filename if provided
+        let filename: string | null = null;
+        if (fileMetadata.size > 0) {
             const files = Array.from(fileMetadata.values());
             files.sort((a, b) => b.timestamp - a.timestamp);
             filename = files[0].filename;
         }
 
-        // Read sample MCQs from JSON file
-        const sampleMcqPath = './src/sample_mcq.json';
-        let questions: MCQQuestion[] = [];
-
+        // Load sample MCQs from JSON file
+        let mcqData: any;
         try {
-            // In Cloudflare Workers, we need to import the JSON file
-            // For now, we'll use a dynamic import
             const mcqModule = await import('./sample_mcq.json');
-            questions = mcqModule.default || mcqModule;
+            mcqData = mcqModule.default || mcqModule;
         } catch (error) {
             console.error('Error loading sample_mcq.json:', error);
             return createJsonResponse(
@@ -210,11 +215,25 @@ async function handleRenderMcqs(
             );
         }
 
-        console.log(`Loaded ${questions.length} MCQs from sample_mcq.json`);
+        // Extract questions for the specific page
+        // The JSON structure is: [{ "1": [...], "2": [...], "3": [...] }]
+        let questions: MCQQuestion[] = [];
+        
+        if (Array.isArray(mcqData) && mcqData.length > 0) {
+            const mcqObject = mcqData[0];
+            const pageKey = pageNumber.toString();
+            
+            if (mcqObject[pageKey]) {
+                questions = mcqObject[pageKey];
+            }
+        }
+
+        console.log(`Loaded ${questions.length} MCQs for page ${pageNumber}`);
 
         return createJsonResponse({
             success: true,
             filename: filename || 'sample',
+            page: pageNumber,
             count: questions.length,
             questions: questions
         }, 200, corsHeaders);
@@ -230,8 +249,121 @@ async function handleRenderMcqs(
 }
 
 
+async function handleGetTranscript(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+    corsHeaders: Record<string, string>
+): Promise<Response> {
+    try {
+        const url = new URL(request.url);
+        
+        // Get page number from query parameter
+        const pageParam = url.searchParams.get('page');
+        const pageNumber = pageParam ? parseInt(pageParam, 10) : 1;
+
+        // Validate page number
+        if (isNaN(pageNumber) || pageNumber < 1) {
+            return createJsonResponse(
+                { error: 'Invalid page number' },
+                400,
+                corsHeaders
+            );
+        }
+
+        // Get filename if provided
+        let filename: string | null = null;
+        if (fileMetadata.size > 0) {
+            const files = Array.from(fileMetadata.values());
+            files.sort((a, b) => b.timestamp - a.timestamp);
+            filename = files[0].filename;
+        }
+
+        // Load sample transcript from JSON file
+        let transcriptData: any;
+        try {
+            const transcriptModule = await import('./sample_transcript.json');
+            transcriptData = transcriptModule.default || transcriptModule;
+        } catch (error) {
+            console.error('Error loading sample_transcript.json:', error);
+            return createJsonResponse(
+                { error: 'Failed to load sample transcript' },
+                500,
+                corsHeaders
+            );
+        }
+
+        // Extract transcript for the specific page
+        // The JSON structure is: [{ "1": "...", "2": "...", "3": "..." }]
+        let transcript: string = '';
+        
+        if (Array.isArray(transcriptData) && transcriptData.length > 0) {
+            const transcriptObject = transcriptData[0];
+            const pageKey = pageNumber.toString();
+            
+            if (transcriptObject[pageKey]) {
+                transcript = transcriptObject[pageKey];
+            }
+        }
+
+        console.log(`Loaded transcript for page ${pageNumber}`);
+
+        return createJsonResponse({
+            success: true,
+            filename: filename || 'sample',
+            page: pageNumber,
+            transcript: transcript
+        }, 200, corsHeaders);
+
+    } catch (error) {
+        console.error('Render transcript error:', error);
+        return createJsonResponse(
+            { error: 'Failed to generate transcript' },
+            500,
+            corsHeaders
+        );
+    }
+}
 
 
+
+
+
+
+/**
+ * Trigger function that executes after a PDF file is successfully uploaded
+ * This can be extended to perform additional operations like:
+ * - PDF processing
+ * - OCR extraction
+ * - Metadata extraction
+ * - Notification sending
+ * - Analytics tracking
+ */
+async function onPdfUploadTrigger(
+	filename: string,
+	fileBuffer: ArrayBuffer,
+	metadata: UploadedFile,
+	env: Env,
+	ctx: ExecutionContext
+): Promise<void> {
+	try {
+		console.log('='.repeat(50));
+		console.log('Trigger for file upload executed');
+		console.log('='.repeat(50));
+		console.log(`Filename: ${filename}`);
+		console.log(`Original Name: ${metadata.originalName}`);
+		console.log(`File Size: ${metadata.size} bytes`);
+		console.log(`Timestamp: ${new Date(metadata.timestamp).toISOString()}`);
+		console.log('='.repeat(50));
+		
+		// TODO: Add custom post-upload processing logic here
+		// Example: Extract text, generate thumbnails, run AI analysis, etc.
+		
+	} catch (error) {
+		console.error('Error in upload trigger:', error);
+		// Don't throw - we don't want to fail the upload if trigger fails
+	}
+}
 
 
 async function handlePdfUpload(
@@ -281,14 +413,21 @@ async function handlePdfUpload(
 		uploadedFiles.set(filename, arrayBuffer);
 		
 		// Store metadata
-		fileMetadata.set(filename, {
+		const metadata: UploadedFile = {
 			filename,
 			timestamp,
 			size: file.size,
 			originalName: file.name
-		});
+		};
+		fileMetadata.set(filename, metadata);
 
 		console.log(`File uploaded successfully: ${filename}`);
+
+		// Execute post-upload trigger
+		// Using ctx.waitUntil to allow async processing without blocking the response
+		ctx.waitUntil(
+			onPdfUploadTrigger(filename, arrayBuffer, metadata, env, ctx)
+		);
 
 		return createJsonResponse({
 			success: true,

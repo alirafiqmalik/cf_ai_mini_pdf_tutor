@@ -139,7 +139,7 @@ async function renderPage(pageNum) {
 		
 		await page.render(renderContext).promise;
 		
-		highlightCurrentPageTranscriptions();
+		// highlightCurrentPageTranscriptions();
 	} catch (error) {
 		console.error('Error rendering page:', error);
 		throw error;
@@ -150,21 +150,28 @@ async function renderPage(pageNum) {
  * Handle previous page
  */
 async function handlePrevPage() {
-	if (currentPage <= 1) return;
-	currentPage--;
-	await renderPage(currentPage);
-	updatePageInfo();
+    if (currentPage <= 1) return;
+    currentPage--;
+    await renderPage(currentPage);
+    updatePageInfo();
+    // Reload questions and transcript for new page
+    await loadQuestions();
+    await loadTranscription();
 }
 
 /**
  * Handle next page
  */
 async function handleNextPage() {
-	if (!pdfDoc || currentPage >= pdfDoc.numPages) return;
-	currentPage++;
-	await renderPage(currentPage);
-	updatePageInfo();
+    if (!pdfDoc || currentPage >= pdfDoc.numPages) return;
+    currentPage++;
+    await renderPage(currentPage);
+    updatePageInfo();
+    // Reload questions and transcript for new page
+    await loadQuestions();
+    await loadTranscription();
 }
+
 
 /**
  * Handle zoom in
@@ -260,68 +267,75 @@ function handleTabSwitch(tabName) {
  * Load transcription data
  */
 async function loadTranscription() {
+	try {
+		console.log('Loading transcript from server...');
+		// Pass current page number as query parameter
+		const response = await fetch(`${API_BASE_URL}/get-transcript?page=${currentPage}`);
 		
-transcriptionList.innerHTML = '<div class="loading-state">No transcription data available</div>';
-// TODO: Replace placeholder code 	
-// try {
-		// const jsonFilename = currentDocId.replace('.pdf', '.json');
-
-	// 	const response = await fetch(`${API_BASE_URL}/temp/${jsonFilename}`);
-		
-	// 	if (response.ok) {
-	// 		transcriptionData = await response.json();
-	// 		renderTranscriptions();
-	// 	} else {
-	// 		transcriptionList.innerHTML = '<div class="loading-state">No transcription data available</div>';
-	// 	}
-	// } catch (error) {
-	// 	console.error('Error loading transcription:', error);
-	// 	transcriptionList.innerHTML = '<div class="loading-state">No transcription data available</div>';
-	// }
+		if (response.ok) {
+			const data = await response.json();
+			const transcript = data.transcript || '';
+			console.log(`Loaded transcript for page ${currentPage}`);
+			
+			if (transcript) {
+				renderTranscriptions(transcript);
+			} else {
+				transcriptionList.innerHTML = `<div class="loading-state">No transcription available for page ${currentPage}</div>`;
+			}
+		} else {
+			console.error('Failed to load transcript:', response.status, response.statusText);
+			transcriptionList.innerHTML = '<div class="loading-state">No transcription data available</div>';
+		}
+	} catch (error) {
+		console.error('Error loading transcription:', error);
+		transcriptionList.innerHTML = '<div class="loading-state">Error loading transcription. Please try again.</div>';
+	}
 }
 
 /**
  * Render transcriptions
  */
-function renderTranscriptions() {
-	if (!transcriptionData || !transcriptionData.transcriptions) {
-		transcriptionList.innerHTML = '<div class="loading-state">No transcriptions found</div>';
+function renderTranscriptions(transcript) {
+	if (!transcript) {
+		transcriptionList.innerHTML = '<div class="loading-state">No transcription found</div>';
 		return;
 	}
 	
-	transcriptionList.innerHTML = transcriptionData.transcriptions.map(item => `
-		<div class="transcription-item" data-page="${item.page}" onclick="goToPage(${item.page})">
-			<span class="transcription-page">Page ${item.page}</span>
-			<div class="transcription-text">${escapeHtml(item.text)}</div>
+	transcriptionList.innerHTML = `
+		<div class="transcription-item">
+			<div class="transcription-text">${escapeHtml(transcript)}</div>
 		</div>
-	`).join('');
+	`;
 }
 
 /**
  * Highlight transcriptions for current page
  */
-function highlightCurrentPageTranscriptions() {
-	document.querySelectorAll('.transcription-item').forEach(item => {
-		const page = parseInt(item.dataset.page);
-		if (page === currentPage) {
-			item.classList.add('active');
-			item.style.opacity = '1';
-		} else {
-			item.classList.remove('active');
-			item.style.opacity = '0.6';
-		}
-	});
-}
+// function highlightCurrentPageTranscriptions() {
+// 	document.querySelectorAll('.transcription-item').forEach(item => {
+// 		const page = parseInt(item.dataset.page);
+// 		if (page === currentPage) {
+// 			item.classList.add('active');
+// 			item.style.opacity = '1';
+// 		} else {
+// 			item.classList.remove('active');
+// 			item.style.opacity = '0.6';
+// 		}
+// 	});
+// }
 
 /**
  * Go to specific page
  * @param {number} pageNum - Page number
  */
 async function goToPage(pageNum) {
-	if (pageNum < 1 || pageNum > pdfDoc.numPages) return;
-	currentPage = pageNum;
-	await renderPage(currentPage);
-	updatePageInfo();
+    if (pageNum < 1 || pageNum > pdfDoc.numPages) return;
+    currentPage = pageNum;
+    await renderPage(currentPage);
+    updatePageInfo();
+    // Reload questions and transcript for new page
+    await loadQuestions();
+    await loadTranscription();
 }
 
 /**
@@ -422,29 +436,32 @@ async function handleSaveNote() {
  * Load questions from server
  */
 async function loadQuestions() {
-	try {
-		console.log('Loading MCQ questions from server...');
-		const response = await fetch(`${API_BASE_URL}/render-mcqs`);
-		
-		if (response.ok) {
-			const data = await response.json();
-			questions = data.questions || data || [];
-			console.log(`Loaded ${questions.length} questions successfully`);
-			
-			if (questions.length > 0) {
-				renderQuestions();
-			} else {
-				questionsList.innerHTML = '<div class="loading-state">No questions available</div>';
-			}
-		} else {
-			console.error('Failed to load questions:', response.status, response.statusText);
-			questionsList.innerHTML = '<div class="loading-state">No questions available</div>';
-		}
-	} catch (error) {
-		console.error('Error loading questions:', error);
-		questionsList.innerHTML = '<div class="loading-state">Error loading questions. Please try again.</div>';
-	}
+    try {
+        console.log('Loading MCQ questions from server...');
+        // Pass current page number as query parameter
+        const response = await fetch(`${API_BASE_URL}/render-mcqs?page=${currentPage}`);
+        
+        if (response.ok) {
+            const data = await response.json();
+            questions = data.questions || data || [];
+            console.log(`Loaded ${questions.length} questions for page ${currentPage}`);
+            
+            if (questions.length > 0) {
+                renderQuestions();
+            } else {
+                questionsList.innerHTML = `<div class="loading-state">No questions available for page ${currentPage}</div>`;
+            }
+        } else {
+            console.error('Failed to load questions:', response.status, response.statusText);
+            questionsList.innerHTML = '<div class="loading-state">No questions available</div>';
+        }
+    } catch (error) {
+        console.error('Error loading questions:', error);
+        questionsList.innerHTML = '<div class="loading-state">Error loading questions. Please try again.</div>';
+    }
 }
+
+
 
 /**
  * Render MCQ questions
