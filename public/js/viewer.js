@@ -1,56 +1,56 @@
 /**
- * PDF Viewer JavaScript
+ * PDF Viewer Page
  * Handles PDF rendering, navigation, and interactions
  */
+
+import { getPdfUrl } from './services/pdf.service.js';
+import { getTranscript } from './services/transcript.service.js';
+import { getMcqs } from './services/mcq.service.js';
+import { getNotes, saveNote } from './services/notes.service.js';
+import { getScore, saveScore } from './services/score.service.js';
+import { DEFAULT_ZOOM, ZOOM_STEP, MIN_ZOOM, MAX_ZOOM, POINTS_PER_CORRECT } from './shared/constants.js';
+import { escapeHtml, formatDate } from './shared/utils.js';
+import * as dom from './shared/dom.js';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 // DOM Elements
-const documentTitle = document.getElementById('documentTitle');
-const newPdfBtn = document.getElementById('newPdfBtn');
-const pdfCanvas = document.getElementById('pdfCanvas');
-const pdfContainer = document.getElementById('pdfContainer');
-const pageInfo = document.getElementById('pageInfo');
-const zoomInfo = document.getElementById('zoomInfo');
-const prevPageBtn = document.getElementById('prevPageBtn');
-const nextPageBtn = document.getElementById('nextPageBtn');
-const zoomInBtn = document.getElementById('zoomInBtn');
-const zoomOutBtn = document.getElementById('zoomOutBtn');
-const tabBtns = document.querySelectorAll('.tab-btn');
-const transcriptionList = document.getElementById('transcriptionList');
-const noteInput = document.getElementById('noteInput');
-const saveNoteBtn = document.getElementById('saveNoteBtn');
-const notesList = document.getElementById('notesList');
-const questionsList = document.getElementById('questionsList');
-const scoreValue = document.getElementById('scoreValue');
-const scoreDetails = document.getElementById('scoreDetails');
-
-// Configuration
-const API_BASE_URL = '';
-const ZOOM_STEP = 0.25;
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 3.0;
-const DEFAULT_ZOOM = 1.5;
-const POINTS_PER_CORRECT = 10;
+let documentTitle, newPdfBtn, pdfCanvas, pageInfo, zoomInfo;
+let prevPageBtn, nextPageBtn, zoomInBtn, zoomOutBtn;
+let transcriptionList, noteInput, saveNoteBtn, notesList;
+let questionsList, scoreValue;
 
 // State
 let pdfDoc = null;
 let currentPage = 1;
 let scale = DEFAULT_ZOOM;
 let currentDocId = null;
-let transcriptionData = null;
 let notes = [];
-let questions = [];
 let userScore = 0;
-let correctAnswers = 0;
-let attemptedQuestions = 0;
-let answeredQuestions = new Set(); // Track which questions have been answered
+let answeredQuestions = new Set();
 
 /**
  * Initialize the viewer
  */
 async function init() {
+	// Get DOM elements
+	documentTitle = dom.getElementById('documentTitle');
+	newPdfBtn = dom.getElementById('newPdfBtn');
+	pdfCanvas = dom.getElementById('pdfCanvas');
+	pageInfo = dom.getElementById('pageInfo');
+	zoomInfo = dom.getElementById('zoomInfo');
+	prevPageBtn = dom.getElementById('prevPageBtn');
+	nextPageBtn = dom.getElementById('nextPageBtn');
+	zoomInBtn = dom.getElementById('zoomInBtn');
+	zoomOutBtn = dom.getElementById('zoomOutBtn');
+	transcriptionList = dom.getElementById('transcriptionList');
+	noteInput = dom.getElementById('noteInput');
+	saveNoteBtn = dom.getElementById('saveNoteBtn');
+	notesList = dom.getElementById('notesList');
+	questionsList = dom.getElementById('questionsList');
+	scoreValue = dom.getElementById('scoreValue');
+
 	setupEventListeners();
 	
 	// Get document ID from URL
@@ -89,7 +89,7 @@ function setupEventListeners() {
 	document.addEventListener('keydown', handleKeyboard);
 	
 	// Tab switching
-	tabBtns.forEach(btn => {
+	document.querySelectorAll('.tab-btn').forEach(btn => {
 		btn.addEventListener('click', () => handleTabSwitch(btn.dataset.tab));
 	});
 	
@@ -102,12 +102,12 @@ function setupEventListeners() {
  */
 async function loadPdf() {
 	try {
-		documentTitle.textContent = 'Loading...';
+		dom.setText(documentTitle, 'Loading...');
 		
-		const loadingTask = pdfjsLib.getDocument(`${API_BASE_URL}/get-pdf/${currentDocId}`);
+		const loadingTask = pdfjsLib.getDocument(getPdfUrl(currentDocId));
 		pdfDoc = await loadingTask.promise;
 		
-		documentTitle.textContent = currentDocId.replace(/^\d+_/, '').replace('.pdf', '');
+		dom.setText(documentTitle, currentDocId.replace(/^\d+_/, '').replace('.pdf', ''));
 		
 		await renderPage(currentPage);
 		updatePageInfo();
@@ -120,7 +120,6 @@ async function loadPdf() {
 
 /**
  * Render PDF page
- * @param {number} pageNum - Page number to render
  */
 async function renderPage(pageNum) {
 	try {
@@ -138,8 +137,6 @@ async function renderPage(pageNum) {
 		};
 		
 		await page.render(renderContext).promise;
-		
-		// highlightCurrentPageTranscriptions();
 	} catch (error) {
 		console.error('Error rendering page:', error);
 		throw error;
@@ -150,28 +147,25 @@ async function renderPage(pageNum) {
  * Handle previous page
  */
 async function handlePrevPage() {
-    if (currentPage <= 1) return;
-    currentPage--;
-    await renderPage(currentPage);
-    updatePageInfo();
-    // Reload questions and transcript for new page
-    await loadQuestions();
-    await loadTranscription();
+	if (currentPage <= 1) return;
+	currentPage--;
+	await renderPage(currentPage);
+	updatePageInfo();
+	await loadQuestions();
+	await loadTranscription();
 }
 
 /**
  * Handle next page
  */
 async function handleNextPage() {
-    if (!pdfDoc || currentPage >= pdfDoc.numPages) return;
-    currentPage++;
-    await renderPage(currentPage);
-    updatePageInfo();
-    // Reload questions and transcript for new page
-    await loadQuestions();
-    await loadTranscription();
+	if (!pdfDoc || currentPage >= pdfDoc.numPages) return;
+	currentPage++;
+	await renderPage(currentPage);
+	updatePageInfo();
+	await loadQuestions();
+	await loadTranscription();
 }
-
 
 /**
  * Handle zoom in
@@ -193,7 +187,6 @@ async function handleZoomOut() {
 
 /**
  * Handle keyboard navigation
- * @param {KeyboardEvent} e - Keyboard event
  */
 function handleKeyboard(e) {
 	// Don't handle if user is typing
@@ -228,7 +221,7 @@ function handleKeyboard(e) {
  */
 function updatePageInfo() {
 	if (pdfDoc) {
-		pageInfo.textContent = `Page ${currentPage} of ${pdfDoc.numPages}`;
+		dom.setText(pageInfo, `Page ${currentPage} of ${pdfDoc.numPages}`);
 		prevPageBtn.disabled = currentPage <= 1;
 		nextPageBtn.disabled = currentPage >= pdfDoc.numPages;
 	}
@@ -238,16 +231,15 @@ function updatePageInfo() {
  * Update zoom info display
  */
 function updateZoomInfo() {
-	zoomInfo.textContent = `${Math.round(scale * 100)}%`;
+	dom.setText(zoomInfo, `${Math.round(scale * 100)}%`);
 }
 
 /**
  * Handle tab switch
- * @param {string} tabName - Tab name to switch to
  */
 function handleTabSwitch(tabName) {
 	// Update tab buttons
-	tabBtns.forEach(btn => {
+	document.querySelectorAll('.tab-btn').forEach(btn => {
 		btn.classList.toggle('active', btn.dataset.tab === tabName);
 	});
 	
@@ -257,7 +249,7 @@ function handleTabSwitch(tabName) {
 	});
 	
 	const panelId = `${tabName}Panel`;
-	const panel = document.getElementById(panelId);
+	const panel = dom.getElementById(panelId);
 	if (panel) {
 		panel.classList.add('active');
 	}
@@ -269,78 +261,283 @@ function handleTabSwitch(tabName) {
 async function loadTranscription() {
 	try {
 		console.log('Loading transcript from server...');
-		// Pass current page number as query parameter
-		const response = await fetch(`${API_BASE_URL}/get-transcript?page=${currentPage}`);
+		const data = await getTranscript(currentDocId, currentPage);
+		const transcript = data.transcript || '';
 		
-		if (response.ok) {
-			const data = await response.json();
-			const transcript = data.transcript || '';
-			console.log(`Loaded transcript for page ${currentPage} from ${data.source || 'unknown'}`);
-			
-			if (transcript) {
-				renderTranscriptions(transcript);
-			} else {
-				transcriptionList.innerHTML = `<div class="loading-state">No transcription available for page ${currentPage}</div>`;
-			}
-		} else if (response.status === 404) {
-			// Handle 404 - No LLM data generated yet
-			const errorData = await response.json().catch(() => ({}));
-			const message = errorData.message || 'Transcript is being processed. Please wait...';
-			transcriptionList.innerHTML = `<div class="loading-state">⏳ ${escapeHtml(message)}</div>`;
+		if (transcript) {
+			renderTranscription(transcript);
 		} else {
-			console.error('Failed to load transcript:', response.status, response.statusText);
-			transcriptionList.innerHTML = '<div class="loading-state">❌ Failed to load transcription data</div>';
+			dom.setHtml(transcriptionList, `<div class="loading-state">No transcription available for page ${currentPage}</div>`);
 		}
 	} catch (error) {
 		console.error('Error loading transcription:', error);
-		transcriptionList.innerHTML = '<div class="loading-state">❌ Error loading transcription. Please try again.</div>';
+		if (error.message.includes('404') || error.message.includes('not found')) {
+			dom.setHtml(transcriptionList, '<div class="loading-state">⏳ Transcript is being processed. Please wait...</div>');
+		} else {
+			dom.setHtml(transcriptionList, '<div class="loading-state">❌ Failed to load transcription</div>');
+		}
 	}
 }
 
 /**
- * Render transcriptions
+ * Render transcription
  */
-function renderTranscriptions(transcript) {
+function renderTranscription(transcript) {
 	if (!transcript) {
-		transcriptionList.innerHTML = '<div class="loading-state">No transcription found</div>';
+		dom.setHtml(transcriptionList, '<div class="loading-state">No transcription found</div>');
 		return;
 	}
 	
-	transcriptionList.innerHTML = `
+	dom.setHtml(transcriptionList, `
 		<div class="transcription-item">
 			<div class="transcription-text">${escapeHtml(transcript)}</div>
 		</div>
-	`;
+	`);
 }
 
 /**
- * Highlight transcriptions for current page
+ * Load questions from server
  */
-// function highlightCurrentPageTranscriptions() {
-// 	document.querySelectorAll('.transcription-item').forEach(item => {
-// 		const page = parseInt(item.dataset.page);
-// 		if (page === currentPage) {
-// 			item.classList.add('active');
-// 			item.style.opacity = '1';
-// 		} else {
-// 			item.classList.remove('active');
-// 			item.style.opacity = '0.6';
-// 		}
-// 	});
-// }
+async function loadQuestions() {
+	try {
+		console.log('Loading MCQ questions from server...');
+		const data = await getMcqs(currentDocId, currentPage);
+		const questions = data.questions || [];
+		
+		if (questions.length > 0) {
+			renderQuestions(questions);
+		} else {
+			dom.setHtml(questionsList, `<div class="loading-state">No questions available for page ${currentPage}</div>`);
+		}
+	} catch (error) {
+		console.error('Error loading questions:', error);
+		if (error.message.includes('404') || error.message.includes('not found')) {
+			dom.setHtml(questionsList, '<div class="loading-state">⏳ MCQ questions are being processed. Please wait...</div>');
+		} else {
+			dom.setHtml(questionsList, '<div class="loading-state">❌ Failed to load questions</div>');
+		}
+	}
+}
 
 /**
- * Go to specific page
- * @param {number} pageNum - Page number
+ * Render MCQ questions
  */
-async function goToPage(pageNum) {
-    if (pageNum < 1 || pageNum > pdfDoc.numPages) return;
-    currentPage = pageNum;
-    await renderPage(currentPage);
-    updatePageInfo();
-    // Reload questions and transcript for new page
-    await loadQuestions();
-    await loadTranscription();
+function renderQuestions(questions) {
+	if (!questions || questions.length === 0) {
+		dom.setHtml(questionsList, '<div class="loading-state">No questions available</div>');
+		return;
+	}
+	
+	dom.clearContent(questionsList);
+	
+	questions.forEach((mcq, index) => {
+		const mcqId = mcq.id || index;
+		const correctOption = mcq.correct !== undefined ? mcq.correct : (mcq.correctAnswer !== undefined ? mcq.correctAnswer : mcq.correct_option);
+		
+		// Create container
+		const mcqContainer = dom.createElement('div', {
+			className: 'question-item mcq-container'
+		});
+		mcqContainer.dataset.mcqId = mcqId;
+		mcqContainer.dataset.correct = correctOption;
+		mcqContainer.dataset.submitted = 'false';
+		mcqContainer.dataset.index = index;
+		
+		// Question text with number
+		const questionText = dom.createElement('div', { className: 'question-text mcq-question' });
+		questionText.textContent = `${index + 1}. ${mcq.question}`;
+		dom.appendChild(mcqContainer, questionText);
+		
+		// Options list
+		const optionsList = dom.createElement('ul', { className: 'question-options mcq-options' });
+		mcq.options.forEach((option, optIndex) => {
+			const optionItem = dom.createElement('li', { className: 'question-option mcq-option' });
+			optionItem.dataset.optionIndex = optIndex;
+			optionItem.textContent = `${String.fromCharCode(65 + optIndex)}. ${option}`;
+			optionItem.addEventListener('click', () => handleOptionSelect(mcqContainer, optIndex));
+			dom.appendChild(optionsList, optionItem);
+		});
+		dom.appendChild(mcqContainer, optionsList);
+		
+		// Submit button
+		const submitBtn = dom.createElement('button', { className: 'btn btn-primary mcq-submit' }, 'Submit Answer');
+		submitBtn.disabled = true;
+		submitBtn.dataset.mcqId = mcqId;
+		submitBtn.addEventListener('click', () => handleSubmitAnswer(mcqContainer, mcq));
+		dom.appendChild(mcqContainer, submitBtn);
+		
+		// Result div
+		const resultDiv = dom.createElement('div', { className: 'mcq-result' });
+		resultDiv.dataset.mcqId = mcqId;
+		dom.appendChild(mcqContainer, resultDiv);
+		
+		// Explanation div
+		const explanationDiv = dom.createElement('div', { className: 'mcq-explanation' });
+		explanationDiv.style.display = 'none';
+		
+		const explanationTitle = dom.createElement('div', { className: 'mcq-explanation-title' }, 'Explanation:');
+		dom.appendChild(explanationDiv, explanationTitle);
+		
+		const explanationText = dom.createElement('div', { className: 'mcq-explanation-text' });
+		explanationText.textContent = mcq.explanation || 'No explanation available';
+		dom.appendChild(explanationDiv, explanationText);
+		
+		dom.appendChild(mcqContainer, explanationDiv);
+		
+		dom.appendChild(questionsList, mcqContainer);
+	});
+}
+
+/**
+ * Handle option select
+ */
+function handleOptionSelect(mcqContainer, optIndex) {
+	if (mcqContainer.dataset.submitted === 'true') return;
+	
+	// Check if options are disabled (safety check)
+	const options = mcqContainer.querySelectorAll('.question-option');
+	if (options[0].classList.contains('disabled')) return;
+	
+	// Clear previous selection
+	options.forEach(opt => {
+		opt.classList.remove('selected');
+	});
+	
+	// Select new option
+	const selectedOption = options[optIndex];
+	if (selectedOption) {
+		selectedOption.classList.add('selected');
+	}
+	
+	// Enable submit button
+	const submitBtn = mcqContainer.querySelector('.mcq-submit');
+	if (submitBtn) {
+		submitBtn.disabled = false;
+	}
+	
+	// Store selected answer
+	mcqContainer.dataset.selectedAnswer = optIndex;
+}
+
+/**
+ * Handle submit answer
+ */
+function handleSubmitAnswer(mcqContainer, mcq) {
+	const selectedAnswer = parseInt(mcqContainer.dataset.selectedAnswer);
+	const correctAnswer = parseInt(mcqContainer.dataset.correct);
+	const mcqId = mcqContainer.dataset.mcqId;
+	
+	console.log('Submit Answer Debug:', {
+		mcqId,
+		selectedAnswer,
+		correctAnswer,
+		hasContainer: !!mcqContainer,
+		alreadySubmitted: mcqContainer.dataset.submitted
+	});
+	
+	// Validation: Check if no option selected
+	if (isNaN(selectedAnswer)) {
+		console.warn('No option selected');
+		return;
+	}
+	
+	// Check if already submitted (to avoid double counting)
+	if (mcqContainer.dataset.submitted === 'true') {
+		console.warn('Question already submitted');
+		return;
+	}
+	
+	// Mark as submitted
+	mcqContainer.dataset.submitted = 'true';
+	answeredQuestions.add(mcqId);
+	
+	// Get DOM elements
+	const options = mcqContainer.querySelectorAll('.question-option');
+	const submitBtn = mcqContainer.querySelector('.mcq-submit');
+	const resultDiv = mcqContainer.querySelector('.mcq-result');
+	const explanationDiv = mcqContainer.querySelector('.mcq-explanation');
+	
+	// Disable further interaction
+	options.forEach(opt => {
+		opt.classList.add('disabled');
+		opt.style.cursor = 'not-allowed';
+	});
+	
+	if (submitBtn) {
+		submitBtn.disabled = true;
+		submitBtn.classList.add('disabled');
+	}
+	
+	// Mark correct and incorrect options with visual styling
+	options.forEach((opt, idx) => {
+		if (idx === correctAnswer) {
+			opt.classList.add('correct');
+		}
+		if (idx === selectedAnswer && selectedAnswer !== correctAnswer) {
+			opt.classList.add('incorrect');
+		}
+	});
+	
+	// Check if correct
+	const isCorrect = selectedAnswer === correctAnswer;
+	
+	// Update score
+	if (isCorrect) {
+		userScore += POINTS_PER_CORRECT;
+		console.log('Score Update:', {
+			isCorrect,
+			userScore,
+			pointsEarned: POINTS_PER_CORRECT
+		});
+	}
+	
+	// Update display and save to server
+	updateScoreDisplay();
+	saveScoreToServer();
+	
+	// Show result message
+	if (resultDiv) {
+		if (isCorrect) {
+			resultDiv.innerHTML = `
+				<div class="result-message result-correct">
+					<strong>✓ Correct!</strong> You earned ${POINTS_PER_CORRECT} points.
+				</div>
+			`;
+		} else {
+			resultDiv.innerHTML = `
+				<div class="result-message result-incorrect">
+					<strong>✗ Incorrect</strong> The correct answer is option ${String.fromCharCode(65 + correctAnswer)}.
+				</div>
+			`;
+		}
+	}
+	
+	// Show explanation
+	if (explanationDiv) {
+		explanationDiv.style.display = 'block';
+		const explanationText = explanationDiv.querySelector('.mcq-explanation-text');
+		if (explanationText) {
+			explanationText.textContent = mcq.explanation || 'No explanation available';
+		}
+	}
+}
+
+/**
+ * Update score display
+ */
+function updateScoreDisplay() {
+	dom.setText(scoreValue, userScore);
+}
+
+/**
+ * Save score to server
+ */
+async function saveScoreToServer() {
+	try {
+		await saveScore(currentDocId, userScore);
+	} catch (error) {
+		console.error('Error saving score:', error);
+	}
 }
 
 /**
@@ -348,13 +545,9 @@ async function goToPage(pageNum) {
  */
 async function loadNotes() {
 	try {
-		const response = await fetch(`${API_BASE_URL}/get-notes?filename=${encodeURIComponent(currentDocId)}`);
-		
-		if (response.ok) {
-			const data = await response.json();
-			notes = data.notes || [];
-			renderNotes();
-		}
+		const data = await getNotes(currentDocId);
+		notes = data.notes || [];
+		renderNotes();
 	} catch (error) {
 		console.error('Error loading notes:', error);
 	}
@@ -365,11 +558,11 @@ async function loadNotes() {
  */
 function renderNotes() {
 	if (notes.length === 0) {
-		notesList.innerHTML = '<div class="empty-state">No notes yet</div>';
+		dom.setHtml(notesList, '<div class="empty-state">No notes yet</div>');
 		return;
 	}
 	
-	notesList.innerHTML = notes.map(note => `
+	const notesHtml = notes.map(note => `
 		<div class="note-item">
 			<div class="note-header">
 				<span class="note-page">Page ${note.page}</span>
@@ -378,6 +571,8 @@ function renderNotes() {
 			<div class="note-content">${escapeHtml(note.note)}</div>
 		</div>
 	`).join('');
+	
+	dom.setHtml(notesList, notesHtml);
 }
 
 /**
@@ -392,474 +587,42 @@ async function handleSaveNote() {
 	}
 	
 	try {
-		saveNoteBtn.disabled = true;
-		saveNoteBtn.textContent = 'Saving...';
+		dom.disable(saveNoteBtn);
+		dom.setText(saveNoteBtn, 'Saving...');
 		
-		const response = await fetch(`${API_BASE_URL}/save-note`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				filename: currentDocId,
-				page: currentPage,
-				note: note
-			})
-		});
+		await saveNote(currentDocId, currentPage, note);
 		
-		if (response.ok) {
-			alert('Note saved successfully!');
-			noteInput.value = '';
-			await loadNotes();
-		} else {
-			alert('Failed to save note');
-		}
+		alert('Note saved successfully!');
+		noteInput.value = '';
+		await loadNotes();
 	} catch (error) {
 		console.error('Error saving note:', error);
 		alert('Failed to save note');
 	} finally {
-		saveNoteBtn.disabled = false;
-		saveNoteBtn.textContent = 'Save Note';
+		dom.enable(saveNoteBtn);
+		dom.setText(saveNoteBtn, 'Save Note');
 	}
 }
 
-// =============================================================================
-// MCQ (Multiple Choice Questions) Logic
-// =============================================================================
-// Flow: loadQuestions() -> renderQuestions() -> selectOption() -> submitAnswer()
-// - loadQuestions: Fetches MCQs from /render-mcqs endpoint
-// - renderQuestions: Dynamically creates DOM elements for each question
-// - selectOption: Handles user selection of an answer option
-// - submitAnswer: Validates answer, updates score, shows feedback
-// API Endpoints:
-// - GET /render-mcqs: Fetch questions from sample_mcq.json
-// - GET /get-score?filename=xxx: Load saved score
-// - POST /save-score: Save current score with {score, filename}
-// =============================================================================
-
 /**
- * Load questions from server
- */
-async function loadQuestions() {
-    try {
-        console.log('Loading MCQ questions from server...');
-        // Pass current page number as query parameter
-        const response = await fetch(`${API_BASE_URL}/render-mcqs?page=${currentPage}`);
-        
-        if (response.ok) {
-            const data = await response.json();
-            questions = data.questions || data || [];
-            console.log(`Loaded ${questions.length} questions for page ${currentPage} from ${data.source || 'unknown'}`);
-            
-            if (questions.length > 0) {
-                renderQuestions();
-            } else {
-                questionsList.innerHTML = `<div class="loading-state">No questions available for page ${currentPage}</div>`;
-            }
-        } else if (response.status === 404) {
-            // Handle 404 - No LLM data generated yet
-            const errorData = await response.json().catch(() => ({}));
-            const message = errorData.message || 'MCQ questions are being processed. Please wait...';
-            questionsList.innerHTML = `<div class="loading-state">⏳ ${escapeHtml(message)}</div>`;
-        } else {
-            console.error('Failed to load questions:', response.status, response.statusText);
-            questionsList.innerHTML = '<div class="loading-state">❌ Failed to load questions</div>';
-        }
-    } catch (error) {
-        console.error('Error loading questions:', error);
-        questionsList.innerHTML = '<div class="loading-state">❌ Error loading questions. Please try again.</div>';
-    }
-}
-
-
-
-/**
- * Render MCQ questions
- */
-function renderQuestions() {
-    if (!questions || questions.length === 0) {
-        questionsList.innerHTML = '<div class="loading-state">No questions available</div>';
-        return;
-    }
-    
-    // Clear existing content
-    questionsList.innerHTML = '';
-    
-    questions.forEach((mcq, index) => {
-        const mcqId = mcq.id || index;
-        const correctOption = mcq.correct !== undefined ? mcq.correct : (mcq.correctAnswer !== undefined ? mcq.correctAnswer : mcq.correct_option);
-        
-        // Create container
-        const mcqContainer = document.createElement('div');
-        mcqContainer.className = 'question-item mcq-container';
-        mcqContainer.dataset.mcqId = mcqId;
-        mcqContainer.dataset.correct = correctOption;
-        mcqContainer.dataset.submitted = 'false';
-        mcqContainer.dataset.index = index;
-        
-        // Question text
-        const questionDiv = document.createElement('div');
-        questionDiv.className = 'question-text mcq-question';
-        questionDiv.textContent = `${index + 1}. ${mcq.question}`;
-        mcqContainer.appendChild(questionDiv);
-        
-        // Options list
-        const optionsList = document.createElement('ul');
-        optionsList.className = 'question-options mcq-options';
-        
-        mcq.options.forEach((option, optionIndex) => {
-            const optionItem = document.createElement('li');
-            optionItem.className = 'question-option mcq-option';
-            optionItem.dataset.optionIndex = optionIndex;
-            optionItem.textContent = `${String.fromCharCode(65 + optionIndex)}. ${option}`;
-            
-            // Add click handler
-            optionItem.addEventListener('click', () => {
-                selectOption(mcqId, optionIndex);
-            });
-            
-            optionsList.appendChild(optionItem);
-        });
-        
-        mcqContainer.appendChild(optionsList);
-        
-        // Submit button
-        const submitBtn = document.createElement('button');
-        submitBtn.className = 'btn btn-primary mcq-submit';
-        submitBtn.textContent = 'Submit Answer';
-        submitBtn.disabled = true;
-        submitBtn.dataset.mcqId = mcqId;
-        submitBtn.addEventListener('click', () => {
-            submitAnswer(mcqId);
-        });
-        mcqContainer.appendChild(submitBtn);
-        
-        // Result div
-        const resultDiv = document.createElement('div');
-        resultDiv.className = 'mcq-result';
-        resultDiv.dataset.mcqId = mcqId;
-        mcqContainer.appendChild(resultDiv);
-        
-        // Explanation div
-        const explanationDiv = document.createElement('div');
-        explanationDiv.className = 'mcq-explanation';
-        explanationDiv.style.display = 'none';
-        
-        const explanationTitle = document.createElement('div');
-        explanationTitle.className = 'mcq-explanation-title';
-        explanationTitle.textContent = 'Explanation:';
-        explanationDiv.appendChild(explanationTitle);
-        
-        const explanationText = document.createElement('div');
-        explanationText.className = 'mcq-explanation-text';
-        explanationText.textContent = mcq.explanation || 'No explanation available';
-        explanationDiv.appendChild(explanationText);
-        
-        mcqContainer.appendChild(explanationDiv);
-        
-        // Add to questions list
-        questionsList.appendChild(mcqContainer);
-    });
-    
-    console.log(`Rendered ${questions.length} MCQ questions`);
-}
-
-/**
- * Select answer option
- * @param {number} mcqId - Question ID
- * @param {number} optionIndex - Option index
- */
-function selectOption(mcqId, optionIndex) {
-    const container = document.querySelector(`[data-mcq-id="${mcqId}"]`);
-    if (!container) {
-        console.error('Container not found for mcqId:', mcqId);
-        return;
-    }
-    
-    const options = container.querySelectorAll('.mcq-option');
-    const submitBtn = container.querySelector('.mcq-submit');
-    
-    // Check if already submitted (avoid interaction with submitted questions)
-    if (container.dataset.submitted === 'true') {
-        console.log('Question already submitted, ignoring selection');
-        return;
-    }
-    
-    // Check if options are disabled (safety check)
-    if (options[0].classList.contains('disabled')) {
-        return;
-    }
-    
-    // Remove previous selection
-    options.forEach(opt => opt.classList.remove('selected'));
-    
-    // Select current option
-    const selectedOption = options[optionIndex];
-    if (selectedOption) {
-        selectedOption.classList.add('selected');
-        console.log(`Selected option ${optionIndex} for question ${mcqId}`);
-    }
-    
-    // Enable submit button
-    if (submitBtn) {
-        submitBtn.disabled = false;
-    }
-    
-    // Store selected option
-    container.dataset.selectedOption = optionIndex;
-}
-
-/**
- * Submit answer
- * @param {number} mcqId - Question ID
- */
-function submitAnswer(mcqId) {
-    const container = document.querySelector(`[data-mcq-id="${mcqId}"]`);
-    if (!container) {
-        console.error('Container not found for mcqId:', mcqId);
-        return;
-    }
-    
-    const options = container.querySelectorAll('.mcq-option');
-    const submitBtn = container.querySelector('.mcq-submit');
-    const resultDiv = container.querySelector('.mcq-result');
-    const explanationDiv = container.querySelector('.mcq-explanation');
-    const selectedOption = parseInt(container.dataset.selectedOption);
-    const correctOption = parseInt(container.dataset.correct);
-    
-    console.log('Submit Answer Debug:', {
-        mcqId,
-        selectedOption,
-        correctOption,
-        hasContainer: !!container,
-        optionsCount: options.length,
-        alreadySubmitted: container.dataset.submitted
-    });
-    
-    // Validation: Check if no option selected
-    if (isNaN(selectedOption)) {
-        alert('Please select an answer');
-        return;
-    }
-    
-    // Check if already submitted (to avoid double counting)
-    if (container.dataset.submitted === 'true') {
-        console.log('Question already submitted, ignoring');
-        return;
-    }
-    
-    // Mark as submitted
-    container.dataset.submitted = 'true';
-    answeredQuestions.add(mcqId);
-    
-    // Disable further interaction
-    options.forEach(opt => {
-        opt.classList.add('disabled');
-        opt.style.pointerEvents = 'none';
-        opt.style.cursor = 'default';
-    });
-    
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.style.opacity = '0.5';
-    }
-    
-    // Mark correct and incorrect options with visual styling
-    options.forEach((opt, idx) => {
-        if (idx === correctOption) {
-            opt.classList.add('correct');
-            opt.style.backgroundColor = '#d4edda';
-            opt.style.borderColor = '#28a745';
-            opt.style.color = '#155724';
-            opt.style.fontWeight = 'bold';
-        } else if (idx === selectedOption && idx !== correctOption) {
-            opt.classList.add('incorrect');
-            opt.style.backgroundColor = '#f8d7da';
-            opt.style.borderColor = '#dc3545';
-            opt.style.color = '#721c24';
-            opt.style.fontWeight = 'bold';
-        }
-    });
-    
-    // Update score tracking
-    attemptedQuestions++;
-    const isCorrect = selectedOption === correctOption;
-    
-    if (isCorrect) {
-        correctAnswers++;
-        userScore += POINTS_PER_CORRECT;
-    }
-    
-    console.log('Score Update:', {
-        isCorrect,
-        correctAnswers,
-        attemptedQuestions,
-        userScore,
-        pointsEarned: isCorrect ? POINTS_PER_CORRECT : 0
-    });
-    
-    // Update display and save to server
-    updateScore();
-    saveScore();
-    
-    // Show result message
-    if (isCorrect) {
-        resultDiv.textContent = `✓ Correct! +${POINTS_PER_CORRECT} points`;
-        resultDiv.className = 'mcq-result show correct-result';
-        resultDiv.style.display = 'block';
-        resultDiv.style.color = '#28a745';
-        resultDiv.style.fontWeight = 'bold';
-        resultDiv.style.marginTop = '10px';
-        resultDiv.style.padding = '10px';
-        resultDiv.style.backgroundColor = '#d4edda';
-        resultDiv.style.border = '1px solid #c3e6cb';
-        resultDiv.style.borderRadius = '4px';
-    } else {
-        resultDiv.textContent = '✗ Incorrect. The correct answer is highlighted in green.';
-        resultDiv.className = 'mcq-result show incorrect-result';
-        resultDiv.style.display = 'block';
-        resultDiv.style.color = '#721c24';
-        resultDiv.style.fontWeight = 'bold';
-        resultDiv.style.marginTop = '10px';
-        resultDiv.style.padding = '10px';
-        resultDiv.style.backgroundColor = '#f8d7da';
-        resultDiv.style.border = '1px solid #f5c6cb';
-        resultDiv.style.borderRadius = '4px';
-    }
-    
-    // Show explanation
-    if (explanationDiv) {
-        explanationDiv.classList.add('show');
-        explanationDiv.style.display = 'block';
-        explanationDiv.style.marginTop = '15px';
-        explanationDiv.style.padding = '12px';
-        explanationDiv.style.backgroundColor = '#f8f9fa';
-        explanationDiv.style.borderLeft = '4px solid #007bff';
-        explanationDiv.style.borderRadius = '4px';
-    }
-}
-
-/**
- * Update score display
- */
-function updateScore() {
-	if (scoreValue) {
-		scoreValue.textContent = userScore;
-	}
-	if (scoreDetails) {
-		const percentage = attemptedQuestions > 0 ? Math.round((correctAnswers / attemptedQuestions) * 100) : 0;
-		scoreDetails.textContent = `${correctAnswers} correct / ${attemptedQuestions} attempted (${percentage}%)`;
-	}
-	
-	console.log('Score display updated:', {
-		score: userScore,
-		correct: correctAnswers,
-		attempted: attemptedQuestions
-	});
-}
-
-/**
- * Load score from server
+ * Load score
  */
 async function loadScore() {
 	try {
-		const response = await fetch(`${API_BASE_URL}/get-score?filename=${encodeURIComponent(currentDocId)}`);
-		
-		if (response.ok) {
-			const data = await response.json();
-			userScore = data.score || 0;
-			console.log('Score loaded from server:', {
-				filename: data.filename,
-				score: userScore
-			});
-			updateScore();
-		} else {
-			console.warn('Failed to load score, starting fresh');
-			userScore = 0;
-			updateScore();
-		}
+		const data = await getScore(currentDocId);
+		userScore = data.score || 0;
+		updateScoreDisplay();
 	} catch (error) {
 		console.error('Error loading score:', error);
-		userScore = 0;
-		updateScore();
 	}
 }
 
 /**
- * Save score to server
- */
-async function saveScore() {
-	try {
-		const response = await fetch(`${API_BASE_URL}/save-score`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				score: userScore,
-				filename: currentDocId
-			})
-		});
-		
-		if (response.ok) {
-			console.log('Score saved:', userScore);
-		} else {
-			console.error('Failed to save score');
-		}
-	} catch (error) {
-		console.error('Error saving score:', error);
-	}
-}
-
-/**
- * Show error message
- * @param {string} message - Error message
+ * Show error
  */
 function showError(message) {
-	documentTitle.textContent = 'Error';
-	pdfContainer.innerHTML = `
-		<div class="empty-state">
-			<svg class="empty-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<circle cx="12" cy="12" r="10"></circle>
-				<line x1="12" y1="8" x2="12" y2="12"></line>
-				<line x1="12" y1="16" x2="12.01" y2="16"></line>
-			</svg>
-			<p class="empty-message">${escapeHtml(message)}</p>
-		</div>
-	`;
+	alert(message);
 }
-
-/**
- * Escape HTML to prevent XSS
- * @param {string} text - Text to escape
- * @returns {string} Escaped text
- */
-function escapeHtml(text) {
-	const div = document.createElement('div');
-	div.textContent = text;
-	return div.innerHTML;
-}
-
-/**
- * Format date
- * @param {string|number|Date} date - Date to format
- * @returns {string} Formatted date
- */
-function formatDate(date) {
-	const d = new Date(date);
-	return d.toLocaleDateString('en-US', {
-		year: 'numeric',
-		month: 'short',
-		day: 'numeric',
-		hour: '2-digit',
-		minute: '2-digit'
-	});
-}
-
-// Make functions globally accessible for onclick handlers
-window.goToPage = goToPage;
-window.selectOption = selectOption;
-window.submitAnswer = submitAnswer;
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
@@ -867,6 +630,3 @@ if (document.readyState === 'loading') {
 } else {
 	init();
 }
-
-// Export for testing
-export { init, loadPdf, renderPage, goToPage };

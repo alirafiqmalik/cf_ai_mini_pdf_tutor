@@ -6,7 +6,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "cf_ai_mini_pdf_tutor",
 	"main": "src/index.ts",
-	"compatibility_date": "2025-11-06",
+	"compatibility_date": "2025-11-05",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],

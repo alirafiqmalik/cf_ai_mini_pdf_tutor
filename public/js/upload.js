@@ -1,28 +1,17 @@
 /**
- * Upload Page JavaScript
+ * Upload Page
  * Handles PDF file upload with drag-and-drop support
  */
 
-// DOM Elements
-const uploadForm = document.getElementById('uploadForm');
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const browseBtn = document.getElementById('browseBtn');
-const submitBtn = document.getElementById('submitBtn');
-const removeFileBtn = document.getElementById('removeFileBtn');
-const fileInfo = document.getElementById('fileInfo');
-const fileName = document.getElementById('fileName');
-const fileSize = document.getElementById('fileSize');
-const uploadProgress = document.getElementById('uploadProgress');
-const progressFill = document.getElementById('progressFill');
-const progressText = document.getElementById('progressText');
-const uploadError = document.getElementById('uploadError');
-const errorMessage = document.getElementById('errorMessage');
+import { uploadPdf } from './services/pdf.service.js';
+import { MAX_FILE_SIZE, ALLOWED_FILE_TYPE, MESSAGES } from './shared/constants.js';
+import { formatFileSize } from './shared/utils.js';
+import * as dom from './shared/dom.js';
 
-// Configuration
-const API_BASE_URL = '';
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const ALLOWED_TYPE = 'application/pdf';
+// DOM Elements
+let uploadForm, dropZone, fileInput, browseBtn, submitBtn, removeFileBtn;
+let fileInfo, fileName, fileSize, uploadProgress, progressFill, progressText;
+let uploadError, errorMessage;
 
 // State
 let selectedFile = null;
@@ -31,6 +20,22 @@ let selectedFile = null;
  * Initialize the upload page
  */
 function init() {
+	// Get DOM elements
+	uploadForm = dom.getElementById('uploadForm');
+	dropZone = dom.getElementById('dropZone');
+	fileInput = dom.getElementById('fileInput');
+	browseBtn = dom.getElementById('browseBtn');
+	submitBtn = dom.getElementById('submitBtn');
+	removeFileBtn = dom.getElementById('removeFileBtn');
+	fileInfo = dom.getElementById('fileInfo');
+	fileName = dom.getElementById('fileName');
+	fileSize = dom.getElementById('fileSize');
+	uploadProgress = dom.getElementById('uploadProgress');
+	progressFill = dom.getElementById('progressFill');
+	progressText = dom.getElementById('progressText');
+	uploadError = dom.getElementById('uploadError');
+	errorMessage = dom.getElementById('errorMessage');
+
 	setupEventListeners();
 }
 
@@ -77,27 +82,25 @@ function handleDropZoneClick() {
 
 /**
  * Handle drag over
- * @param {DragEvent} e - Drag event
  */
 function handleDragOver(e) {
 	e.preventDefault();
-	dropZone.classList.add('drop-zone--drag-over');
+	dom.addClass(dropZone, 'drop-zone--drag-over');
 }
 
 /**
  * Handle drag leave
  */
 function handleDragLeave() {
-	dropZone.classList.remove('drop-zone--drag-over');
+	dom.removeClass(dropZone, 'drop-zone--drag-over');
 }
 
 /**
  * Handle file drop
- * @param {DragEvent} e - Drop event
  */
 function handleDrop(e) {
 	e.preventDefault();
-	dropZone.classList.remove('drop-zone--drag-over');
+	dom.removeClass(dropZone, 'drop-zone--drag-over');
 	
 	const files = e.dataTransfer?.files;
 	if (files && files.length > 0) {
@@ -107,7 +110,6 @@ function handleDrop(e) {
 
 /**
  * Handle file select from input
- * @param {Event} e - Change event
  */
 function handleFileSelect(e) {
 	const files = e.target.files;
@@ -118,37 +120,35 @@ function handleFileSelect(e) {
 
 /**
  * Validate and set the selected file
- * @param {File} file - File to validate
  */
 function validateAndSetFile(file) {
 	hideError();
 	
 	// Validate file type
-	if (file.type !== ALLOWED_TYPE) {
-		showError('Please select a PDF file.');
+	if (file.type !== ALLOWED_FILE_TYPE) {
+		showError(MESSAGES.FILE_TYPE_ERROR);
 		return;
 	}
 	
 	// Validate file size
 	if (file.size > MAX_FILE_SIZE) {
-		showError(`File size exceeds ${formatFileSize(MAX_FILE_SIZE)}. Please select a smaller file.`);
+		showError(`${MESSAGES.FILE_SIZE_ERROR} Maximum: ${formatFileSize(MAX_FILE_SIZE)}`);
 		return;
 	}
 	
 	// Set the file
 	selectedFile = file;
 	displayFileInfo(file);
-	submitBtn.disabled = false;
+	dom.enable(submitBtn);
 }
 
 /**
  * Display file information
- * @param {File} file - Selected file
  */
 function displayFileInfo(file) {
-	fileName.textContent = file.name;
-	fileSize.textContent = formatFileSize(file.size);
-	fileInfo.classList.remove('hidden');
+	dom.setText(fileName, file.name);
+	dom.setText(fileSize, formatFileSize(file.size));
+	dom.show(fileInfo);
 	dropZone.style.display = 'none';
 }
 
@@ -158,15 +158,14 @@ function displayFileInfo(file) {
 function handleRemoveFile() {
 	selectedFile = null;
 	fileInput.value = '';
-	fileInfo.classList.add('hidden');
+	dom.hide(fileInfo);
 	dropZone.style.display = 'block';
-	submitBtn.disabled = true;
+	dom.disable(submitBtn);
 	hideError();
 }
 
 /**
  * Handle form submit
- * @param {Event} e - Submit event
  */
 async function handleSubmit(e) {
 	e.preventDefault();
@@ -181,106 +180,50 @@ async function handleSubmit(e) {
 		setUploadState(true);
 		
 		// Upload the file
-		const result = await uploadFile(selectedFile);
+		const result = await uploadPdf(selectedFile, updateProgress);
 		
 		// Redirect to viewer
 		window.location.href = `viewer.html?doc=${encodeURIComponent(result.filename)}`;
 		
 	} catch (error) {
 		console.error('Upload error:', error);
-		showError(error.message || 'Failed to upload file. Please try again.');
+		showError(error.message || MESSAGES.UPLOAD_ERROR);
 		setUploadState(false);
 	}
 }
 
 /**
- * Upload file to server
- * @param {File} file - File to upload
- * @returns {Promise<Object>} Upload result
- */
-async function uploadFile(file) {
-	const formData = new FormData();
-	formData.append('pdf', file);
-	
-	return new Promise((resolve, reject) => {
-		const xhr = new XMLHttpRequest();
-		
-		// Upload progress
-		xhr.upload.addEventListener('progress', (e) => {
-			if (e.lengthComputable) {
-				const percentComplete = (e.loaded / e.total) * 100;
-				updateProgress(percentComplete);
-			}
-		});
-		
-		// Upload complete
-		xhr.addEventListener('load', () => {
-			if (xhr.status === 200) {
-				try {
-					const result = JSON.parse(xhr.responseText);
-					if (result.success && result.filename) {
-						resolve(result);
-					} else {
-						reject(new Error('Invalid server response'));
-					}
-				} catch (error) {
-					reject(new Error('Invalid server response'));
-				}
-			} else {
-				try {
-					const error = JSON.parse(xhr.responseText);
-					reject(new Error(error.error || error.message || 'Upload failed'));
-				} catch {
-					reject(new Error(`Upload failed with status ${xhr.status}`));
-				}
-			}
-		});
-		
-		// Upload error
-		xhr.addEventListener('error', () => {
-			reject(new Error('Network error. Please check your connection.'));
-		});
-		
-		// Send request
-		xhr.open('POST', `${API_BASE_URL}/upload-pdf`);
-		xhr.send(formData);
-	});
-}
-
-/**
  * Update upload progress
- * @param {number} percent - Progress percentage
  */
 function updateProgress(percent) {
 	progressFill.style.width = `${percent}%`;
-	progressText.textContent = `Uploading... ${Math.round(percent)}%`;
+	dom.setText(progressText, `Uploading... ${Math.round(percent)}%`);
 }
 
 /**
  * Set upload state
- * @param {boolean} uploading - Whether uploading
  */
 function setUploadState(uploading) {
-	submitBtn.disabled = uploading;
-	removeFileBtn.disabled = uploading;
-	
 	if (uploading) {
-		uploadProgress.classList.remove('hidden');
-		fileInfo.classList.add('hidden');
+		dom.disable(submitBtn);
+		dom.disable(removeFileBtn);
+		dom.show(uploadProgress);
+		dom.hide(fileInfo);
 		updateProgress(0);
 	} else {
-		uploadProgress.classList.add('hidden');
-		fileInfo.classList.remove('hidden');
+		dom.enable(submitBtn);
+		dom.enable(removeFileBtn);
+		dom.hide(uploadProgress);
+		dom.show(fileInfo);
 	}
 }
 
 /**
  * Show error message
- * @param {string} message - Error message
  */
 function showError(message) {
-	errorMessage.textContent = message;
-	uploadError.classList.remove('hidden');
+	dom.setText(errorMessage, message);
+	dom.show(uploadError);
 	uploadError.setAttribute('role', 'alert');
 }
 
@@ -288,21 +231,8 @@ function showError(message) {
  * Hide error message
  */
 function hideError() {
-	uploadError.classList.add('hidden');
+	dom.hide(uploadError);
 	uploadError.removeAttribute('role');
-}
-
-/**
- * Format file size
- * @param {number} bytes - File size in bytes
- * @returns {string} Formatted file size
- */
-function formatFileSize(bytes) {
-	if (bytes === 0) return '0 Bytes';
-	const k = 1024;
-	const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-	const i = Math.floor(Math.log(bytes) / Math.log(k));
-	return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
 // Initialize when DOM is ready
@@ -311,6 +241,3 @@ if (document.readyState === 'loading') {
 } else {
 	init();
 }
-
-// Export for testing
-export { init, validateAndSetFile, uploadFile, formatFileSize };
