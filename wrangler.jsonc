@@ -8,7 +8,6 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2025-11-06",
 	"compatibility_flags": [
-		"global_fetch_strictly_public",
 		"nodejs_compat"
 	],
 	"assets": {
@@ -19,7 +18,8 @@
 		"enabled": true
 	},
 	"ai": {
-		"binding": "AI"
+		"binding": "AI",
+		"remote": true,
 	},
 	"r2_buckets": [
 		{
