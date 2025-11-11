@@ -17,6 +17,9 @@
 	},
 	"dependencies": {
 		"ai": "^5.0.89",
+		"pdfjs-dist": "^5.4.394",
+		"r2": "^2.0.1",
+		"r2-explorer": "^1.1.10",
 		"workers-ai-provider": "^2.0.0"
 	}
 }

@@ -218,16 +218,20 @@ async function uploadFile(file) {
 			if (xhr.status === 200) {
 				try {
 					const result = JSON.parse(xhr.responseText);
-					resolve(result);
+					if (result.success && result.filename) {
+						resolve(result);
+					} else {
+						reject(new Error('Invalid server response'));
+					}
 				} catch (error) {
 					reject(new Error('Invalid server response'));
 				}
 			} else {
 				try {
 					const error = JSON.parse(xhr.responseText);
-					reject(new Error(error.error || 'Upload failed'));
+					reject(new Error(error.error || error.message || 'Upload failed'));
 				} catch {
-					reject(new Error('Upload failed'));
+					reject(new Error(`Upload failed with status ${xhr.status}`));
 				}
 			}
 		});

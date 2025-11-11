@@ -275,20 +275,25 @@ async function loadTranscription() {
 		if (response.ok) {
 			const data = await response.json();
 			const transcript = data.transcript || '';
-			console.log(`Loaded transcript for page ${currentPage}`);
+			console.log(`Loaded transcript for page ${currentPage} from ${data.source || 'unknown'}`);
 			
 			if (transcript) {
 				renderTranscriptions(transcript);
 			} else {
 				transcriptionList.innerHTML = `<div class="loading-state">No transcription available for page ${currentPage}</div>`;
 			}
+		} else if (response.status === 404) {
+			// Handle 404 - No LLM data generated yet
+			const errorData = await response.json().catch(() => ({}));
+			const message = errorData.message || 'Transcript is being processed. Please wait...';
+			transcriptionList.innerHTML = `<div class="loading-state">⏳ ${escapeHtml(message)}</div>`;
 		} else {
 			console.error('Failed to load transcript:', response.status, response.statusText);
-			transcriptionList.innerHTML = '<div class="loading-state">No transcription data available</div>';
+			transcriptionList.innerHTML = '<div class="loading-state">❌ Failed to load transcription data</div>';
 		}
 	} catch (error) {
 		console.error('Error loading transcription:', error);
-		transcriptionList.innerHTML = '<div class="loading-state">Error loading transcription. Please try again.</div>';
+		transcriptionList.innerHTML = '<div class="loading-state">❌ Error loading transcription. Please try again.</div>';
 	}
 }
 
@@ -444,20 +449,25 @@ async function loadQuestions() {
         if (response.ok) {
             const data = await response.json();
             questions = data.questions || data || [];
-            console.log(`Loaded ${questions.length} questions for page ${currentPage}`);
+            console.log(`Loaded ${questions.length} questions for page ${currentPage} from ${data.source || 'unknown'}`);
             
             if (questions.length > 0) {
                 renderQuestions();
             } else {
                 questionsList.innerHTML = `<div class="loading-state">No questions available for page ${currentPage}</div>`;
             }
+        } else if (response.status === 404) {
+            // Handle 404 - No LLM data generated yet
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData.message || 'MCQ questions are being processed. Please wait...';
+            questionsList.innerHTML = `<div class="loading-state">⏳ ${escapeHtml(message)}</div>`;
         } else {
             console.error('Failed to load questions:', response.status, response.statusText);
-            questionsList.innerHTML = '<div class="loading-state">No questions available</div>';
+            questionsList.innerHTML = '<div class="loading-state">❌ Failed to load questions</div>';
         }
     } catch (error) {
         console.error('Error loading questions:', error);
-        questionsList.innerHTML = '<div class="loading-state">Error loading questions. Please try again.</div>';
+        questionsList.innerHTML = '<div class="loading-state">❌ Error loading questions. Please try again.</div>';
     }
 }
 

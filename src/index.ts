@@ -1,15 +1,7 @@
-// import { Env, ChatMessage } from "types";
-
-// Model ID for Workers AI model
-// https://developers.cloudflare.com/workers-ai/models/
-// const MODEL_ID = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-
-// // Default system prompt
-// const SYSTEM_PROMPT =
-// 	"";
-
-
-
+interface Env {
+    AI: Ai;
+    pdf_tutor_storage: R2Bucket;
+}
 
 interface MCQQuestion {
     id: number;
@@ -18,36 +10,43 @@ interface MCQQuestion {
     correct: number;
 }
 
-
 interface UploadedFile {
-	filename: string;
-	timestamp: number;
-	size: number;
-	originalName: string;
+    filename: string;
+    timestamp: number;
+    size: number;
+    originalName: string;
 }
-
 
 interface Note {
-	filename: string;
-	page: number;
-	note: string;
-	timestamp: number;
+    filename: string;
+    page: number;
+    note: string;
+    timestamp: number;
 }
 
-
 const CONFIG = {
-	MAX_FILE_SIZE: 50 * 1024 * 1024, // 50MB
-	ALLOWED_ORIGINS: ['*'], // Configure for production
-	MAX_NOTE_LENGTH: 10000,
-	RATE_LIMIT: 100, // requests per minute
+    MAX_FILE_SIZE: 50 * 1024 * 1024, // 50MB
+    ALLOWED_ORIGINS: ['*'], // Configure for production
+    MAX_NOTE_LENGTH: 10000,
+    RATE_LIMIT: 100, // requests per minute
 } as const;
 
-// In-memory storage (for demo purposes)
-// TODO: In production, migrate to Cloudflare R2, KV, or D1
-const uploadedFiles = new Map<string, ArrayBuffer>();
+
+// Keep in-memory storage for metadata, notes, and scores
+// PDFs will be stored in R2
 const fileMetadata = new Map<string, UploadedFile>();
 const notes = new Map<string, Note[]>();
 const scores = new Map<string, number>();
+
+
+
+// R2 Storage Keys
+const R2_KEYS = {
+    PDF_PREFIX: 'pdfs/',
+    METADATA_PREFIX: 'metadata/',
+    LLM_TRANSCRIPT_PREFIX: 'llm_transcripts/',
+    LLM_MCQ_PREFIX: 'llm_mcqs/'
+} as const;
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
@@ -111,52 +110,58 @@ interface Route {
 	handler: (request: Request, env: Env, ctx: ExecutionContext, corsHeaders: Record<string, string>) => Promise<Response>;
 }
 
+// Add new routes
 const routes: Route[] = [
-	{
-		pattern: /^\/upload-pdf$/,
-		method: 'POST',
-		handler: handlePdfUpload
-	},
-		{
-		pattern: /^\/get-pdf\/.+$/,
-		method: 'GET',
-		handler: handleGetPdf
-	},
-	// {
-	// 	pattern: /^\/temp\/.+$/,
-	// 	method: 'GET',
-	// 	handler: handleFileServe
-	// },
-	{
-		pattern: /^\/save-note$/,
-		method: 'POST',
-		handler: handleSaveNote
-	},
-	{
-		pattern: /^\/get-notes$/,
-		method: 'GET',
-		handler: handleGetNotes
-	},
-	{
-		pattern: /^\/get-score$/,
-		method: 'GET',
-		handler: handleGetScore
-	},
-	{
-		pattern: /^\/save-score$/,
-		method: 'POST',
-		handler: handleSaveScore
-	},
-	{
-		pattern: /^\/render-mcqs$/,
-		method: 'GET',
-		handler: handleRenderMcqs
-	},
-	{
-		pattern: /^\/get-transcript$/,
-		method: 'GET',
-		handler: handleGetTranscript
-	},
+    {
+        pattern: /^\/upload-pdf$/,
+        method: 'POST',
+        handler: handlePdfUpload
+    },
+    {
+        pattern: /^\/get-pdf\/.+$/,
+        method: 'GET',
+        handler: handleGetPdf
+    },
+    {
+        pattern: /^\/list-pdfs$/,
+        method: 'GET',
+        handler: handleListPdfs
+    },
+    {
+        pattern: /^\/delete-pdf\/.+$/,
+        method: 'DELETE',
+        handler: handleDeletePdf
+    },
+    {
+        pattern: /^\/save-note$/,
+        method: 'POST',
+        handler: handleSaveNote
+    },
+    {
+        pattern: /^\/get-notes$/,
+        method: 'GET',
+        handler: handleGetNotes
+    },
+    {
+        pattern: /^\/get-score$/,
+        method: 'GET',
+        handler: handleGetScore
+    },
+    {
+        pattern: /^\/save-score$/,
+        method: 'POST',
+        handler: handleSaveScore
+    },
+    {
+        pattern: /^\/render-mcqs$/,
+        method: 'GET',
+        handler: handleRenderMcqs
+    },
+    {
+        pattern: /^\/get-transcript$/,
+        method: 'GET',
+        handler: handleGetTranscript
+    },
 ];
 
 
@@ -213,41 +218,31 @@ async function handleRenderMcqs(
             filename = files[0].filename;
         }
 
-        // Load sample MCQs from JSON file
-        let mcqData: any;
-        try {
-            const mcqModule = await import('./sample_mcq.json');
-            mcqData = mcqModule.default || mcqModule;
-        } catch (error) {
-            console.error('Error loading sample_mcq.json:', error);
-            return createJsonResponse(
-                { error: 'Failed to load sample questions' },
-                500,
-                corsHeaders
-            );
+        // Get MCQs from R2
+        if (!filename) {
+            return createJsonResponse({
+                error: 'No PDF uploaded',
+                message: 'Please upload a PDF file first to generate MCQ questions'
+            }, 404, corsHeaders);
         }
 
-        // Extract questions for the specific page
-        // The JSON structure is: [{ "1": [...], "2": [...], "3": [...] }]
-        let questions: MCQQuestion[] = [];
+        const questions = await getLLMMCQsFromR2(filename, pageNumber, env);
         
-        if (Array.isArray(mcqData) && mcqData.length > 0) {
-            const mcqObject = mcqData[0];
-            const pageKey = pageNumber.toString();
-            
-            if (mcqObject[pageKey]) {
-                questions = mcqObject[pageKey];
-            }
+        if (!questions || questions.length === 0) {
+            console.log(`No LLM-generated MCQs found for ${filename}, page ${pageNumber}`);
+            return createJsonResponse({
+                error: 'No LLM-generated MCQ generated',
+                message: 'MCQ questions are still being processed or not available for this page'
+            }, 404, corsHeaders);
         }
-
-        console.log(`Loaded ${questions.length} MCQs for page ${pageNumber}`);
 
         return createJsonResponse({
             success: true,
-            filename: filename || 'sample',
+            filename: filename,
             page: pageNumber,
             count: questions.length,
-            questions: questions
+            questions: questions,
+            source: 'r2'
         }, 200, corsHeaders);
 
     } catch (error) {
@@ -291,40 +286,30 @@ async function handleGetTranscript(
             filename = files[0].filename;
         }
 
-        // Load sample transcript from JSON file
-        let transcriptData: any;
-        try {
-            const transcriptModule = await import('./sample_transcript.json');
-            transcriptData = transcriptModule.default || transcriptModule;
-        } catch (error) {
-            console.error('Error loading sample_transcript.json:', error);
-            return createJsonResponse(
-                { error: 'Failed to load sample transcript' },
-                500,
-                corsHeaders
-            );
+        // Get transcript from R2
+        if (!filename) {
+            return createJsonResponse({
+                error: 'No PDF uploaded',
+                message: 'Please upload a PDF file first to generate transcripts'
+            }, 404, corsHeaders);
         }
 
-        // Extract transcript for the specific page
-        // The JSON structure is: [{ "1": "...", "2": "...", "3": "..." }]
-        let transcript: string = '';
+        const transcript = await getLLMTranscriptFromR2(filename, pageNumber, env);
         
-        if (Array.isArray(transcriptData) && transcriptData.length > 0) {
-            const transcriptObject = transcriptData[0];
-            const pageKey = pageNumber.toString();
-            
-            if (transcriptObject[pageKey]) {
-                transcript = transcriptObject[pageKey];
-            }
+        if (!transcript) {
+            console.log(`No LLM-generated transcript found for ${filename}, page ${pageNumber}`);
+            return createJsonResponse({
+                error: 'No LLM-generated transcript generated',
+                message: 'Transcript is still being processed or not available for this page'
+            }, 404, corsHeaders);
         }
-
-        console.log(`Loaded transcript for page ${pageNumber}`);
 
         return createJsonResponse({
             success: true,
-            filename: filename || 'sample',
+            filename: filename,
             page: pageNumber,
-            transcript: transcript
+            transcript: transcript,
+            source: 'r2'
         }, 200, corsHeaders);
 
     } catch (error) {
@@ -380,131 +365,152 @@ async function onPdfUploadTrigger(
 
 
 async function handlePdfUpload(
-	request: Request,
-	env: Env,
-	ctx: ExecutionContext,
-	corsHeaders: Record<string, string>
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+    corsHeaders: Record<string, string>
 ): Promise<Response> {
-	try {
-		const formData = await request.formData();
-		const file = formData.get('pdf') as File;
-		
-		// Validation: Check if file exists
-		if (!file) {
-			return createJsonResponse(
-				{ error: 'No file uploaded' },
-				400,
-				corsHeaders
-			);
-		}
 
-		// Validation: Check file type
-		if (!file.type.includes('pdf')) {
-			return createJsonResponse(
-				{ error: 'File must be a PDF' },
-				400,
-				corsHeaders
-			);
-		}
 
-		// Validation: Check file size
-		if (file.size > CONFIG.MAX_FILE_SIZE) {
-			return createJsonResponse(
-				{ error: `File size exceeds maximum of ${CONFIG.MAX_FILE_SIZE} bytes` },
-				400,
-				corsHeaders
-			);
-		}
+	 // Debug: Check R2 binding
+    console.log('=== R2 DEBUG ===');
+    console.log('R2 binding available?', !!env.pdf_tutor_storage);
+    console.log('R2 binding type:', typeof env.pdf_tutor_storage);
+    console.log('Environment keys:', Object.keys(env));
+    console.log('================');
+    try {
+        const formData = await request.formData();
+        const file = formData.get('pdf') as File;
+        
+        if (!file) {
+            return createJsonResponse(
+                { error: 'No file uploaded' },
+                400,
+                corsHeaders
+            );
+        }
 
-		// Generate unique filename with sanitization
-		const timestamp = Date.now();
-		const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-		const filename = `${timestamp}_${originalName}`;
+        if (!file.type.includes('pdf')) {
+            return createJsonResponse(
+                { error: 'File must be a PDF' },
+                400,
+                corsHeaders
+            );
+        }
 
-		// Store file in memory
-		const arrayBuffer = await file.arrayBuffer();
-		uploadedFiles.set(filename, arrayBuffer);
-		
-		// Store metadata
-		const metadata: UploadedFile = {
-			filename,
-			timestamp,
-			size: file.size,
-			originalName: file.name
-		};
-		fileMetadata.set(filename, metadata);
+        if (file.size > CONFIG.MAX_FILE_SIZE) {
+            return createJsonResponse(
+                { error: `File size exceeds maximum of ${CONFIG.MAX_FILE_SIZE} bytes` },
+                400,
+                corsHeaders
+            );
+        }
 
-		console.log(`File uploaded successfully: ${filename}`);
+        const timestamp = Date.now();
+        const originalName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filename = `${originalName}`;
+        const r2Key = `${R2_KEYS.PDF_PREFIX}${filename}`;
 
-		// Execute post-upload trigger
-		// Using ctx.waitUntil to allow async processing without blocking the response
-		ctx.waitUntil(
-			onPdfUploadTrigger(filename, arrayBuffer, metadata, env, ctx)
-		);
+        const arrayBuffer = await file.arrayBuffer();
+        await env.pdf_tutor_storage.put(r2Key, arrayBuffer, {
+            httpMetadata: {
+                contentType: 'application/pdf',
+            },
+            customMetadata: {
+                originalName: file.name,
+                uploadTimestamp: timestamp.toString(),
+                size: file.size.toString(),
+            }
+        });
 
-		return createJsonResponse({
-			success: true,
-			filename: filename,
-			originalName: file.name,
-			size: file.size
-		}, 200, corsHeaders);
+        const metadata: UploadedFile = {
+            filename,
+            timestamp,
+            size: file.size,
+            originalName: file.name
+        };
+        fileMetadata.set(filename, metadata);
 
-	} catch (error) {
-		console.error('Upload error:', error);
-		return createJsonResponse(
-			{ error: 'Upload failed' },
-			500,
-			corsHeaders
-		);
-	}
+        console.log(`✓ PDF uploaded to R2: ${r2Key}`);
+
+        ctx.waitUntil(
+            onPdfUploadTrigger(filename, arrayBuffer, metadata, env, ctx)
+        );
+
+        return createJsonResponse({
+            success: true,
+            filename: filename,
+            originalName: file.name,
+            size: file.size,
+            r2Key: r2Key
+        }, 200, corsHeaders);
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        return createJsonResponse(
+            { error: 'Upload failed', details: error instanceof Error ? error.message : 'Unknown error' },
+            500,
+            corsHeaders
+        );
+    }
 }
 
-
+// Replace handleGetPdf
 async function handleGetPdf(
-	request: Request,
-	env: Env,
-	ctx: ExecutionContext,
-	corsHeaders: Record<string, string>
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+    corsHeaders: Record<string, string>
 ): Promise<Response> {
-	const url = new URL(request.url);
-	const pathname = url.pathname;
-	
-	// Extract filename from path
-	const filename = pathname.replace('/get-pdf/', '');
-	
-	// Security: Prevent directory traversal
-	if (filename.includes('..') || filename.includes('/')) {
-		return createJsonResponse(
-			{ error: 'Invalid filename' },
-			400,
-			corsHeaders
-		);
-	}
-	
-	// Check if file exists in memory
-	if (uploadedFiles.has(filename)) {
-		const file = uploadedFiles.get(filename)!;
-		const contentType = filename.endsWith('.pdf') 
-			? 'application/pdf' 
-			: filename.endsWith('.json')
-			? 'application/json'
-			: 'application/octet-stream';
-		
-		return new Response(file, {
-			headers: {
-				...corsHeaders,
-				'Content-Type': contentType,
-				'Cache-Control': 'public, max-age=3600'
-			}
-		});
-	}
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    
+    const filename = pathname.replace('/get-pdf/', '');
+    
+    if (filename.includes('..') || filename.includes('/') || !filename) {
+        return createJsonResponse(
+            { error: 'Invalid filename' },
+            400,
+            corsHeaders
+        );
+    }
 
-	// File not found
-	return createJsonResponse(
-		{ error: 'File not found' },
-		404,
-		corsHeaders
-	);
+    try {
+        const r2Key = `${R2_KEYS.PDF_PREFIX}${filename}`;
+        const object = await env.pdf_tutor_storage.get(r2Key);
+
+        if (!object) {
+            console.log(`✗ PDF not found in R2: ${r2Key}`);
+            return createJsonResponse(
+                { error: 'File not found' },
+                404,
+                corsHeaders
+            );
+        }
+
+        const metadata = object.customMetadata;
+        
+        console.log(`✓ PDF retrieved from R2: ${r2Key}`);
+
+        return new Response(object.body, {
+            headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/pdf',
+                'Content-Length': object.size.toString(),
+                'Cache-Control': 'public, max-age=3600',
+                'X-Original-Name': metadata?.originalName || filename,
+                'X-Upload-Timestamp': metadata?.uploadTimestamp || '',
+            }
+        });
+
+    } catch (error) {
+        console.error('Get PDF error:', error);
+        return createJsonResponse(
+            { error: 'Failed to retrieve PDF', details: error instanceof Error ? error.message : 'Unknown error' },
+            500,
+            corsHeaders
+        );
+    }
 }
 
 
@@ -599,6 +605,216 @@ async function handleGetNotes(
 
 
 
+
+// Add new handler - List PDFs
+async function handleListPdfs(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+    corsHeaders: Record<string, string>
+): Promise<Response> {
+    try {
+        const url = new URL(request.url);
+        const cursor = url.searchParams.get('cursor') || undefined;
+        const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+
+        const listed = await env.pdf_tutor_storage.list({
+            prefix: R2_KEYS.PDF_PREFIX,
+            cursor: cursor,
+            limit: Math.min(limit, 1000)
+        });
+
+        const files = listed.objects.map(obj => ({
+            filename: obj.key.replace(R2_KEYS.PDF_PREFIX, ''),
+            size: obj.size,
+            uploaded: obj.uploaded,
+            metadata: obj.customMetadata
+        }));
+
+        console.log(`✓ Listed ${files.length} PDFs from R2`);
+
+        return createJsonResponse({
+            success: true,
+            files: files,
+            truncated: listed.truncated,
+            cursor: listed.cursor
+        }, 200, corsHeaders);
+
+    } catch (error) {
+        console.error('List PDFs error:', error);
+        return createJsonResponse(
+            { error: 'Failed to list PDFs', details: error instanceof Error ? error.message : 'Unknown error' },
+            500,
+            corsHeaders
+        );
+    }
+}
+
+// Add new handler - Delete PDF
+async function handleDeletePdf(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+    corsHeaders: Record<string, string>
+): Promise<Response> {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    
+    const filename = pathname.replace('/delete-pdf/', '');
+    
+    if (filename.includes('..') || filename.includes('/') || !filename) {
+        return createJsonResponse(
+            { error: 'Invalid filename' },
+            400,
+            corsHeaders
+        );
+    }
+
+    try {
+        const r2Key = `${R2_KEYS.PDF_PREFIX}${filename}`;
+        
+        await env.pdf_tutor_storage.delete(r2Key);
+
+        const transcriptKey = `${R2_KEYS.LLM_TRANSCRIPT_PREFIX}${filename}.json`;
+        const mcqKey = `${R2_KEYS.LLM_MCQ_PREFIX}${filename}.json`;
+        
+        await env.pdf_tutor_storage.delete(transcriptKey);
+        await env.pdf_tutor_storage.delete(mcqKey);
+
+        fileMetadata.delete(filename);
+        notes.delete(filename);
+        scores.delete(filename);
+
+        console.log(`✓ PDF deleted from R2: ${r2Key}`);
+
+        return createJsonResponse({
+            success: true,
+            message: 'File deleted successfully',
+            filename: filename
+        }, 200, corsHeaders);
+
+    } catch (error) {
+        console.error('Delete PDF error:', error);
+        return createJsonResponse(
+            { error: 'Failed to delete PDF', details: error instanceof Error ? error.message : 'Unknown error' },
+            500,
+            corsHeaders
+        );
+    }
+}
+
+// Add helper functions for R2 storage
+async function storeLLMTranscriptInR2(
+    filename: string,
+    transcriptData: Record<string, string>,
+    env: Env
+): Promise<void> {
+    try {
+        const r2Key = `${R2_KEYS.LLM_TRANSCRIPT_PREFIX}${filename}.json`;
+        const jsonData = JSON.stringify([transcriptData], null, 2);
+
+        await env.pdf_tutor_storage.put(r2Key, jsonData, {
+            httpMetadata: {
+                contentType: 'application/json',
+            },
+            customMetadata: {
+                type: 'llm_transcript',
+                generatedAt: Date.now().toString(),
+                pdfFilename: filename
+            }
+        });
+
+        console.log(`✓ Transcript stored in R2: ${r2Key}`);
+    } catch (error) {
+        console.error('Error storing transcript in R2:', error);
+        throw error;
+    }
+}
+
+async function storeLLMMCQsInR2(
+    filename: string,
+    mcqData: Record<string, any[]>,
+    env: Env
+): Promise<void> {
+    try {
+        const r2Key = `${R2_KEYS.LLM_MCQ_PREFIX}${filename}.json`;
+        const jsonData = JSON.stringify([mcqData], null, 2);
+
+        await env.pdf_tutor_storage.put(r2Key, jsonData, {
+            httpMetadata: {
+                contentType: 'application/json',
+            },
+            customMetadata: {
+                type: 'llm_mcqs',
+                generatedAt: Date.now().toString(),
+                pdfFilename: filename
+            }
+        });
+
+        console.log(`✓ MCQs stored in R2: ${r2Key}`);
+    } catch (error) {
+        console.error('Error storing MCQs in R2:', error);
+        throw error;
+    }
+}
+
+async function getLLMTranscriptFromR2(
+    filename: string,
+    pageNumber: number,
+    env: Env
+): Promise<string | null> {
+    try {
+        const r2Key = `${R2_KEYS.LLM_TRANSCRIPT_PREFIX}${filename}.json`;
+        const object = await env.pdf_tutor_storage.get(r2Key);
+
+        if (!object) {
+            console.log(`✗ Transcript not found in R2: ${r2Key}`);
+            return null;
+        }
+
+        const jsonText = await object.text();
+        const transcriptData = JSON.parse(jsonText);
+
+        if (Array.isArray(transcriptData) && transcriptData.length > 0) {
+            const pageKey = pageNumber.toString();
+            return transcriptData[0][pageKey] || null;
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Error retrieving transcript from R2:', error);
+        return null;
+    }
+}
+
+async function getLLMMCQsFromR2(
+    filename: string,
+    pageNumber: number,
+    env: Env
+): Promise<any[] | null> {
+    try {
+        const r2Key = `${R2_KEYS.LLM_MCQ_PREFIX}${filename}.json`;
+        const object = await env.pdf_tutor_storage.get(r2Key);
+
+        if (!object) {
+            console.log(`✗ MCQs not found in R2: ${r2Key}`);
+            return null;
+        }
+
+        const jsonText = await object.text();
+        const mcqData = JSON.parse(jsonText);
+
+        if (Array.isArray(mcqData) && mcqData.length > 0) {
+            const pageKey = pageNumber.toString();
+            return mcqData[0][pageKey] || null;
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Error retrieving MCQs from R2:', error);
+        return null;
+    }
+}
 
 async function handleGetScore(
     request: Request,
