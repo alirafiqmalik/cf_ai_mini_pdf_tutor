@@ -1,0 +1,45 @@
+/**
+ * Transcription Component Styles
+ */
+
+/* Transcription List */
+.transcription-list {
+    padding: var(--spacing-lg);
+}
+
+.transcription-item {
+    background-color: var(--color-gray-100);
+    border-left: 4px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.transcription-item:hover {
+    background-color: var(--color-gray-200);
+    box-shadow: var(--shadow-md);
+}
+
+.transcription-item.active {
+    background-color: var(--color-primary-light);
+    border-left-color: var(--color-primary-dark);
+}
+
+.transcription-page {
+    display: inline-block;
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    margin-bottom: var(--spacing-sm);
+}
+
+.transcription-text {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-gray-800);
+}

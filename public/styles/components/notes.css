@@ -1,0 +1,82 @@
+/**
+ * Notes Component Styles
+ */
+
+/* Notes Form */
+.notes-form {
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-gray-200);
+}
+
+.note-textarea {
+    width: 100%;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 80px;
+    margin-bottom: var(--spacing-md);
+    transition: var(--transition-fast);
+}
+
+.note-textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+/* Notes List */
+.notes-list {
+    padding: var(--spacing-lg);
+    max-height: calc(100vh - 400px);
+    overflow-y: auto;
+}
+
+.note-item {
+    background-color: var(--color-white);
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    transition: var(--transition-fast);
+}
+
+.note-item:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-gray-300);
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--color-gray-200);
+}
+
+.note-page {
+    display: inline-block;
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.note-date {
+    font-size: var(--font-size-xs);
+    color: var(--color-gray-600);
+}
+
+.note-content {
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    color: var(--color-gray-800);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}

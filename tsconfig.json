@@ -41,5 +41,5 @@
 		]
 	},
 	"exclude": ["test"],
-	"include": ["src/**/*.ts"]
+	"include": ["src/**/*.ts", "arch/index.old.ts"]
 }
