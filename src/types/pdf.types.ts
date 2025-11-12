@@ -7,7 +7,7 @@
  */
 export interface PdfExtractionResult {
     numPages: number;
-    pages?: string[]; // Add optional pages array
+    pages: string[];
 }
 
 /**
