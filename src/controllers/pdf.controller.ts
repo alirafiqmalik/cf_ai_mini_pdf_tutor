@@ -57,9 +57,13 @@ export async function handleUpload(
 		
 		await storageService.storeMetadata(filename, metadata, env);
 		
-		// Schedule PDF processing in background
-		ctx.waitUntil(processPdfInBackground(filename, fileBuffer, metadata, env));
+		// // Schedule PDF processing in background
+		// ctx.waitUntil(processPdf(filename, fileBuffer, metadata, env));
 		
+		
+		// Complete PDF processing before returning		
+		// TODO: Update `Uploading Bar` on upload page to show processing bar
+		await processPdf(filename, fileBuffer, metadata, env);
 		logger.info(`PDF uploaded successfully: ${filename}`);
 		
 		return createJsonResponse({
@@ -84,7 +88,7 @@ export async function handleUpload(
 /**
  * Process PDF in background (generate transcripts and MCQs)
  */
-async function processPdfInBackground(
+async function processPdf(
     filename: string,
     fileBuffer: ArrayBuffer,
     metadata: UploadedFile,
@@ -94,7 +98,7 @@ async function processPdfInBackground(
         logger.info(`Starting background processing for: ${filename}`);
         
         // Extract text from PDF using unpdf
-        const { numPages: numPages, pages: pages } = await pdfService.extractPdfText(fileBuffer);
+        const { pages: pages, numPages: numPages  } = await pdfService.extractPdfText(fileBuffer);
         logger.info(`Extracted ${numPages} pages from ${filename}`);
         
         // Use parsed pages directly
@@ -117,7 +121,7 @@ async function processPdfInBackground(
             
             logger.info(`Processed page ${pageNum}/${pages.length} for ${filename}`);
         }
-        
+        // logger.info(`Successfully read page ${pageNum}`);
         // Store results in R2
         await storageService.storeTranscript(filename, allTranscripts, env);
         await storageService.storeMcqs(filename, allMcqs, env);
