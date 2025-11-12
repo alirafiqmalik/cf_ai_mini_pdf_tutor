@@ -40,7 +40,8 @@ export async function handleUpload(
 		
 		// Generate unique filename
 		const timestamp = Date.now();
-		const filename = `${timestamp}_${file.name}`;
+		// TODO: assign randomly geenarted name to uploaded file and create methods to handle the reterival/access of original name and path name (to avoid advanced path traversal attacks on filenames)  
+		const filename = `${file.name}`;
 		
 		// Get file buffer
 		const fileBuffer = await file.arrayBuffer();
