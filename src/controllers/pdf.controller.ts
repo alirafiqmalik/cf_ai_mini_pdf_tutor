@@ -85,47 +85,47 @@ export async function handleUpload(
  * Process PDF in background (generate transcripts and MCQs)
  */
 async function processPdfInBackground(
-	filename: string,
-	fileBuffer: ArrayBuffer,
-	metadata: UploadedFile,
-	env: Env
+    filename: string,
+    fileBuffer: ArrayBuffer,
+    metadata: UploadedFile,
+    env: Env
 ): Promise<void> {
-	try {
-		logger.info(`Starting background processing for: ${filename}`);
-		
-		// Extract text from PDF
-		const { text, numPages } = await pdfService.extractPdfText(fileBuffer);
-		logger.info(`Extracted ${numPages} pages from ${filename}`);
-		
-		// Split into pages
-		const pages = pdfService.splitTextIntoPages(text, numPages);
-		
-		// Process each page
-		const allTranscripts: Record<number, string> = {};
-		const allMcqs: Record<string, any[]> = {};
-		
-		for (let pageNum = 1; pageNum <= pages.length; pageNum++) {
-			const pageText = pages[pageNum - 1];
-			
-			// Generate transcript
-			const transcript = await llmService.generateTranscript(pageText, pageNum, env);
-			allTranscripts[pageNum] = transcript;
-			
-			// Generate MCQs
-			const mcqs = await llmService.generateMcqs(pageText, pageNum, env);
-			allMcqs[pageNum.toString()] = mcqs;
-			
-			logger.info(`Processed page ${pageNum}/${pages.length} for ${filename}`);
-		}
-		
-		// Store results in R2
-		await storageService.storeTranscript(filename, allTranscripts, env);
-		await storageService.storeMcqs(filename, allMcqs, env);
-		
-		logger.info(`Background processing completed for: ${filename}`);
-	} catch (error) {
-		logger.error(`Background processing failed for ${filename}`, error);
-	}
+    try {
+        logger.info(`Starting background processing for: ${filename}`);
+        
+        // Extract text from PDF using unpdf
+        const { numPages: numPages, pages: pages } = await pdfService.extractPdfText(fileBuffer);
+        logger.info(`Extracted ${numPages} pages from ${filename}`);
+        
+        // Use parsed pages directly
+        // const pages = pdfService.splitTextIntoPages(text, numPages, parsedPages);
+        
+        // Process each page
+        const allTranscripts: Record<number, string> = {};
+        const allMcqs: Record<string, any[]> = {};
+        
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            const pageText = pages[pageNum - 1];
+            
+            // Generate transcript
+            const transcript = await llmService.generateTranscript(pageText, pageNum, env);
+            allTranscripts[pageNum] = transcript;
+            
+            // Generate MCQs
+            const mcqs = await llmService.generateMcqs(pageText, pageNum, env);
+            allMcqs[pageNum.toString()] = mcqs;
+            
+            logger.info(`Processed page ${pageNum}/${pages.length} for ${filename}`);
+        }
+        
+        // Store results in R2
+        await storageService.storeTranscript(filename, allTranscripts, env);
+        await storageService.storeMcqs(filename, allMcqs, env);
+        
+        logger.info(`Background processing completed for: ${filename}`);
+    } catch (error) {
+        logger.error(`Background processing failed for ${filename}`, error);
+    }
 }
 
 /**

@@ -6,8 +6,8 @@
  * Result of PDF text extraction
  */
 export interface PdfExtractionResult {
-	text: string;
-	numPages: number;
+    numPages: number;
+    pages?: string[]; // Add optional pages array
 }
 
 /**
