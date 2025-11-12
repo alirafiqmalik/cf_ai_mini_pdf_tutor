@@ -19,13 +19,13 @@ export async function generateTranscript(
 ): Promise<string> {
 	try {
 		// Limit the input text to avoid API errors
-		const truncatedText = pageText.substring(0, LLM_CONFIG.MAX_INPUT_TEXT_LENGTH).trim();
+		const truncatedText = pageText.substring(0, 100).trim();
 
-		// Skip if text is too short
-		if (truncatedText.length < LLM_CONFIG.MIN_TEXT_LENGTH) {
-			logger.warn(`Text too short for page ${pageNumber}, using fallback`);
-			return `Summary for page ${pageNumber}: Content not available for analysis.`;
-		}
+		// // Skip if text is too short
+		// if (truncatedText.length < LLM_CONFIG.MIN_TEXT_LENGTH) {
+		// 	logger.warn(`Text too short for page ${pageNumber}, using fallback`);
+		// 	return `Summary for page ${pageNumber}: Content not available for analysis.`;
+		// }
 		
 		const promptA = `Summarize this educational text in 2 sentences:\n\n${truncatedText}`;
 
@@ -34,10 +34,11 @@ export async function generateTranscript(
 			{ role: "user", content: promptA }
 		];
 
-		const response = await env.AI.run(LLM_CONFIG.MODEL_ID, {
-			messages: messages as any[],
-			max_tokens: LLM_CONFIG.MAX_TOKENS_TRANSCRIPT,
-		});
+		// const response = await env.AI.run(LLM_CONFIG.MODEL_ID, {
+		// 	messages: messages as any[],
+		// 	max_tokens: LLM_CONFIG.MAX_TOKENS_TRANSCRIPT,
+		// });
+		const response = await handleChatRequest(messages,env);
 
 		// Extract the response text
 		if (response && typeof response === 'object' && 'response' in response) {
@@ -78,10 +79,12 @@ export async function generateMcqs(
 			{ role: "user", content: promptB }
 		];
 
-		const response = await env.AI.run(LLM_CONFIG.MODEL_ID, {
-			messages: messages as any[],
-			max_tokens: LLM_CONFIG.MAX_TOKENS_MCQ,
-		});
+		// const response = await env.AI.run(LLM_CONFIG.MODEL_ID, {
+		// 	messages: messages as any[],
+		// 	max_tokens: LLM_CONFIG.MAX_TOKENS_MCQ,
+		// });
+
+		const response = await handleChatRequest(messages,env);
 
 		// Extract and parse the response
 		let responseText = "";
