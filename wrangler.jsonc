@@ -28,6 +28,19 @@
 			// "remote": true,
 			"preview_bucket_name": "pdf-tutor-storage"
 		}
+	],
+	"vectorize": [
+		{
+			"binding": "VECTORIZE",
+			"index_name": "vector-index"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "database",
+			"database_name": "database",
+			"database_id": "8a894d0e-9d63-4187-88eb-7233afdb142a"
+		}
 	]
 	/**
 	 * Smart Placement
