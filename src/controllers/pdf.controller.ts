@@ -102,9 +102,6 @@ async function processPdf(
         const { pages: pages, numPages: numPages  } = await pdfService.extractPdfText(fileBuffer);
         logger.info(`Extracted ${numPages} pages from ${filename}`);
         
-        // Use parsed pages directly
-        // const pages = pdfService.splitTextIntoPages(text, numPages, parsedPages);
-        
         // Process each page
         const allTranscripts: Record<number, string> = {};
         const allMcqs: Record<string, any[]> = {};
