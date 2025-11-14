@@ -172,6 +172,19 @@ a:hover {
     border-color: var(--color-gray-400);
 }
 
+.btn-danger {
+    color: var(--color-white);
+    background-color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #c0392b;
+    border-color: #c0392b;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
 .btn-icon {
     padding: var(--spacing-sm);
     background-color: transparent;

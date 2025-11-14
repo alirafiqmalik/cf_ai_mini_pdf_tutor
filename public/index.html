@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Upload PDF documents to PDF Tutor">
-    <title>Upload PDF - PDF Tutor</title>
+    <meta name="description" content="Manage your PDF documents with PDF Tutor">
+    <title>PDF Manager - PDF Tutor</title>
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/upload.css">
 </head>
@@ -27,75 +27,186 @@
         </header>
 
         <main class="main-content">
-            <div class="upload-container">
-                <h2 class="upload-title">Upload Your PDF</h2>
-                <p class="upload-subtitle">Select a PDF file to start learning</p>
+            <div class="pdf-manager-container">
+                <!-- Top Action Bar -->
+                <div class="action-bar">
+                    <button id="deleteBtn" class="btn btn-danger btn-delete" disabled aria-label="Delete selected PDFs">
+                        <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Delete
+                    </button>
+                    <div class="action-bar-spacer"></div>
+                    <button id="uploadBtn" class="btn btn-primary" aria-label="Upload new PDF">
+                        <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        Upload PDF
+                    </button>
+                </div>
 
-                <form id="uploadForm" class="upload-form">
-                    <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="Upload area">
-                        <input 
-                            type="file" 
-                            id="fileInput" 
-                            name="pdf" 
-                            accept="application/pdf" 
-                            class="file-input"
-                            aria-label="Choose PDF file"
-                        >
-                        <div class="drop-zone-content">
-                            <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                            <p class="drop-zone-text">Drag and drop your PDF here</p>
-                            <p class="drop-zone-or">or</p>
-                            <button type="button" id="browseBtn" class="btn btn-secondary">Browse Files</button>
+                <!-- PDF List Section -->
+                <div class="pdf-list-section">
+                    <h2 class="section-title">Your PDFs</h2>
+                    <div id="pdfListContainer">
+                        <div class="loading-spinner">
+                            <div class="spinner"></div>
+                            <p>Loading PDFs...</p>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <div id="fileInfo" class="file-info hidden">
-                        <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                        </svg>
-                        <div class="file-details">
-                            <p id="fileName" class="file-name"></p>
-                            <p id="fileSize" class="file-size"></p>
-                        </div>
-                        <button type="button" id="removeFileBtn" class="btn-remove" aria-label="Remove file">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Upload Modal -->
+            <div id="uploadModal" class="modal hidden">
+                <div class="modal-overlay"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">Upload PDF</h3>
+                        <button id="closeModalBtn" class="btn-close" aria-label="Close modal">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18"></line>
                                 <line x1="6" y1="6" x2="18" y2="18"></line>
                             </svg>
                         </button>
                     </div>
+                    <div class="modal-body">
+                        <form id="uploadForm" class="upload-form">
+                            <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="Upload area">
+                                <input 
+                                    type="file" 
+                                    id="fileInput" 
+                                    name="pdf" 
+                                    accept="application/pdf" 
+                                    class="file-input"
+                                    aria-label="Choose PDF file"
+                                >
+                                <div class="drop-zone-content">
+                                    <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
+                                    <p class="drop-zone-text">Drag and drop your PDF here</p>
+                                    <p class="drop-zone-or">or</p>
+                                    <button type="button" id="browseBtn" class="btn btn-secondary">Browse Files</button>
+                                </div>
+                            </div>
 
-                    <div id="uploadProgress" class="upload-progress hidden">
-                        <div class="progress-bar">
-                            <div id="progressFill" class="progress-fill"></div>
+                            <div id="fileInfo" class="file-info hidden">
+                                <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                <div class="file-details">
+                                    <p id="fileName" class="file-name"></p>
+                                    <p id="fileSize" class="file-size"></p>
+                                </div>
+                                <button type="button" id="removeFileBtn" class="btn-remove" aria-label="Remove file">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div id="uploadProgress" class="upload-progress hidden">
+                                <div class="progress-bar">
+                                    <div id="progressFill" class="progress-fill"></div>
+                                </div>
+                                <p id="progressText" class="progress-text">Uploading...</p>
+                            </div>
+
+                            <div id="uploadError" class="upload-error hidden">
+                                <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                                <p id="errorMessage" class="error-message"></p>
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                id="submitBtn" 
+                                class="btn btn-primary btn-large" 
+                                disabled
+                                aria-label="Upload PDF file"
+                            >
+                                Upload PDF
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delete Confirmation Modal -->
+            <div id="deleteModal" class="modal hidden">
+                <div class="modal-overlay"></div>
+                <div class="modal-content modal-small">
+                    <div class="modal-header">
+                        <h3 class="modal-title">Confirm Delete</h3>
+                        <button id="closeDeleteModalBtn" class="btn-close" aria-label="Close modal">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="delete-confirmation">
+                            <svg class="delete-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            <p id="deleteMessage" class="delete-message">Are you sure you want to delete this PDF?</p>
+                            <div id="deleteProgress" class="delete-progress hidden">
+                                <div class="spinner"></div>
+                                <p>Deleting...</p>
+                            </div>
                         </div>
-                        <p id="progressText" class="progress-text">Uploading...</p>
+                        <div class="modal-actions">
+                            <button id="cancelDeleteBtn" class="btn btn-secondary">Cancel</button>
+                            <button id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+                        </div>
                     </div>
+                </div>
+            </div>
 
-                    <div id="uploadError" class="upload-error hidden">
-                        <svg class="error-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="8" x2="12" y2="12"></line>
-                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                        </svg>
-                        <p id="errorMessage" class="error-message"></p>
+            <!-- Delete Confirmation Modal -->
+            <div id="deleteModal" class="modal hidden">
+                <div class="modal-overlay"></div>
+                <div class="modal-content modal-small">
+                    <div class="modal-header">
+                        <h3 class="modal-title">Confirm Delete</h3>
+                        <button id="closeDeleteModalBtn" class="btn-close" aria-label="Close modal">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
                     </div>
-
-                    <button 
-                        type="submit" 
-                        id="submitBtn" 
-                        class="btn btn-primary btn-large" 
-                        disabled
-                        aria-label="Upload PDF file"
-                    >
-                        Upload PDF
-                    </button>
-                </form>
+                    <div class="modal-body">
+                        <div class="delete-confirmation">
+                            <svg class="delete-icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            <p id="deleteMessage" class="delete-message">Are you sure you want to delete this PDF?</p>
+                            <div id="deleteProgress" class="delete-progress hidden">
+                                <div class="spinner"></div>
+                                <p>Deleting...</p>
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button id="cancelDeleteBtn" class="btn btn-secondary">Cancel</button>
+                            <button id="confirmDeleteBtn" class="btn btn-danger">Delete</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
