@@ -32,6 +32,7 @@
 	"vectorize": [
 		{
 			"binding": "VECTORIZE",
+			"remote": true,
 			"index_name": "vector-index"
 		}
 	],

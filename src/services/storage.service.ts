@@ -7,6 +7,7 @@ import { Env, UploadedFile, TranscriptData, McqData } from '../types';
 import { buildPdfKey, buildMetadataKey, buildTranscriptKey, buildMcqKey, extractFilenameFromKey } from '../utils/storage.utils';
 import { R2_KEYS } from '../config/constants';
 import { createLogger } from '../utils/logger.utils';
+import * as vectorService from './vector.service';
 
 const logger = createLogger('StorageService');
 
@@ -167,12 +168,20 @@ export async function listPdfs(env: Env): Promise<UploadedFile[]> {
 }
 
 /**
- * Delete all data associated with a filename
+ * Delete all data associated with a filename (including RAG data)
  */
 export async function deleteAllFileData(filename: string, env: Env): Promise<void> {
+	// Delete from R2 storage
 	await deletePdf(filename, env);
 	await env.pdf_tutor_storage.delete(buildMetadataKey(filename));
 	await env.pdf_tutor_storage.delete(buildTranscriptKey(filename));
 	await env.pdf_tutor_storage.delete(buildMcqKey(filename));
-	logger.info(`Deleted all data for: ${filename}`);
+	
+	// Delete from D1 database
+	await vectorService.deleteDocument(filename, env);
+	
+	// Delete from Vectorize index
+	await vectorService.deleteDocumentVectors(filename, env);
+	
+	logger.info(`Deleted all data (including RAG data) for: ${filename}`);
 }

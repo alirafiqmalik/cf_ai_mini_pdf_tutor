@@ -8,6 +8,8 @@ import * as storageService from '../services/storage.service';
 import * as pdfService from '../services/pdf.service';
 import * as llmService from '../services/llm.service';
 import * as validationService from '../services/validation.service';
+import * as ragService from '../services/rag.service';
+import * as vectorService from '../services/vector.service';
 import { createJsonResponse, createErrorResponse, createNotFoundResponse } from '../utils/response.utils';
 import { validateFilename } from '../utils/storage.utils';
 import { ValidationError, NotFoundError } from '../middleware/error.middleware';
@@ -64,7 +66,8 @@ export async function handleUpload(
 		
 		// Complete PDF processing before returning		
 		// TODO: Update `Uploading Bar` on upload page to show processing bar
-		await processPdf(filename, fileBuffer, metadata, env);
+		// await processPdf(filename, fileBuffer, metadata, env);
+		ctx.waitUntil(processPdf(filename, fileBuffer, metadata, env));
 		logger.info(`PDF uploaded successfully: ${filename}`);
 		
 		return createJsonResponse({
@@ -87,7 +90,7 @@ export async function handleUpload(
 }
 
 /**
- * Process PDF in background (generate transcripts and MCQs)
+ * Process PDF in background (generate transcripts and MCQs with RAG)
  */
 async function processPdf(
     filename: string,
@@ -96,37 +99,75 @@ async function processPdf(
     env: Env
 ): Promise<void> {
     try {
-        logger.info(`Starting background processing for: ${filename}`);
+        logger.info(`Starting RAG-enhanced processing for: ${filename}`);
         
         // Extract text from PDF using unpdf
         const { pages: pages, numPages: numPages  } = await pdfService.extractPdfText(fileBuffer);
         logger.info(`Extracted ${numPages} pages from ${filename}`);
         
-        // Process each page
+        // ===== RAG WORKFLOW STEP 1: Process document into chunks =====
+        const chunkedDoc = ragService.processDocument(filename, pages);
+        logger.info(`Chunked document: ${chunkedDoc.totalChunks} chunks across ${chunkedDoc.totalPages} pages`);
+        
+        // ===== RAG WORKFLOW STEP 2: Generate embeddings =====
+        // Generate full text embedding
+        // const fullTextEmbedding = await ragService.generateFullTextEmbedding(
+        //     chunkedDoc.fullText,
+        //     env
+        // );
+        logger.info('Generated full text embedding');
+        
+        // Generate page embeddings
+        const pageEmbeddings = await ragService.generatePageEmbeddings(
+            chunkedDoc.pageChunks,
+            env
+        );
+        logger.info(`Generated ${Object.keys(pageEmbeddings).length} page embeddings`);
+        
+        // ===== RAG WORKFLOW STEP 3: Store in D1 database =====
+        await vectorService.storeDocument(chunkedDoc, env);
+        logger.info('Stored document in D1 database');
+        
+        // ===== RAG WORKFLOW STEP 4: Upsert vectors to Vectorize =====
+        // await vectorService.upsertFullTextVector(filename, fullTextEmbedding, env);
+        await vectorService.upsertPageVectors(filename, pageEmbeddings, env);
+        logger.info('Upserted vectors to Vectorize index');
+        
+        // ===== GENERATE TRANSCRIPTS AND MCQS WITH RAG =====
         const allTranscripts: Record<number, string> = {};
         const allMcqs: Record<string, any[]> = {};
         
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             const pageText = pages[pageNum - 1];
             
-            // Generate transcript
-            const transcript = await llmService.generateTranscript(pageText, pageNum, env);
+            // Generate transcript with RAG enhancement
+            const transcript = await llmService.generateTranscriptWithRAG(
+                pageText,
+                pageNum,
+                filename,
+                env
+            );
             allTranscripts[pageNum] = transcript;
             
-            // Generate MCQs
-            const mcqs = await llmService.generateMcqs(pageText, pageNum, env);
+            // Generate MCQs with RAG enhancement
+            const mcqs = await llmService.generateMcqsWithRAG(
+                pageText,
+                pageNum,
+                filename,
+                env
+            );
             allMcqs[pageNum.toString()] = mcqs;
             
-            logger.info(`Processed page ${pageNum}/${pages.length} for ${filename}`);
+            logger.info(`Processed page ${pageNum}/${numPages} for ${filename}`);
         }
-        // logger.info(`Successfully read page ${pageNum}`);
+        
         // Store results in R2
         await storageService.storeTranscript(filename, allTranscripts, env);
         await storageService.storeMcqs(filename, allMcqs, env);
         
-        logger.info(`Background processing completed for: ${filename}`);
+        logger.info(`RAG-enhanced processing completed for: ${filename}`);
     } catch (error) {
-        logger.error(`Background processing failed for ${filename}`, error);
+        logger.error(`RAG processing failed for ${filename}`, error);
     }
 }
 

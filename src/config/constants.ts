@@ -19,13 +19,27 @@ export const CONFIG = {
  * LLM Configuration
  */
 export const LLM_CONFIG = {
-	MODEL_ID: '@cf/meta/llama-3.1-8b-instruct',
+	MODEL_ID: '@cf/meta/llama-3.1-70b-instruct',
+	EMBEDDING_MODEL_ID: '@cf/nomic-ai/nomic-embed-text-v1.5',
 	SYSTEM_PROMPT: 'You are a helpful AI assistant.',
 	MAX_TOKENS_TRANSCRIPT: 256,
 	MAX_TOKENS_MCQ: 512,
 	MAX_TOKENS_CHAT: 1024,
 	MAX_INPUT_TEXT_LENGTH: 1000,
 	MIN_TEXT_LENGTH: 20,
+} as const;
+
+/**
+ * RAG Configuration
+ */
+export const RAG_CONFIG = {
+	CHUNK_SIZE: 400, // Characters per chunk (keep smaller for embedding models)
+	CHUNK_OVERLAP: 50, // Overlap between chunks
+	EMBEDDING_DIMENSIONS: 768, // BGE base model dimensions
+	TOP_K_RESULTS: 3, // Number of top results to retrieve
+	SCORE_THRESHOLD: 0.5, // Minimum similarity score
+	MAX_CONTEXT_LENGTH: 1500, // Max characters for augmented context
+	MAX_EMBEDDING_TEXT_LENGTH: 2048, // Maximum text length for embeddings
 } as const;
 
 /**

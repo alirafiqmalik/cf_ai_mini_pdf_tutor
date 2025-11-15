@@ -4,8 +4,10 @@
  */
 
 import { ChatMessage, McqQuestion, Env } from '../types';
-import { LLM_CONFIG } from '../config/constants';
+import { LLM_CONFIG, RAG_CONFIG } from '../config/constants';
 import { createLogger } from '../utils/logger.utils';
+import * as ragService from './rag.service';
+import * as vectorService from './vector.service';
 
 const logger = createLogger('LLMService');
 
@@ -151,6 +153,166 @@ function createFallbackMcqs(pageNumber: number): McqQuestion[] {
 			explanation: "The content requires proper PDF parsing for accurate assessment."
 		}
 	];
+}
+
+/**
+ * Generate transcript with RAG enhancement
+ */
+export async function generateTranscriptWithRAG(
+	pageText: string,
+	pageNumber: number,
+	filename: string,
+	env: Env
+): Promise<string> {
+	try {
+		// Generate embedding for the current page query
+		const queryPrompt = `Summarize this educational text in 2 sentences:\n\n${pageText.substring(0, 1000)}`;
+		const queryEmbedding = await ragService.generateEmbedding(queryPrompt, env);
+		
+		// Query relevant context from both full text and specific page
+		// const fullTextResults = await vectorService.queryFullTextVector(
+		// 	filename,
+		// 	queryEmbedding.embedding,
+		// 	env,
+		// 	{ topK: 1 }
+		// );
+		
+		const pageResults = await vectorService.queryPageTextVector(
+			filename,
+			pageNumber,
+			queryEmbedding.embedding,
+			env,
+			{ topK: 2 }
+		);
+		
+		// Get the stored document for context
+		const document = await vectorService.getDocument(filename, env);
+		
+		// Build relevant context from results
+		const relevantTexts: Array<{ text: string; pageNumber?: number; score: number }> = [];
+		
+		if (document) {
+			// Add page-specific chunks
+			if (document.pageChunks[pageNumber]) {
+				relevantTexts.push({
+					text: document.pageChunks[pageNumber].join(' '),
+					pageNumber: pageNumber,
+					score: 1.0
+				});
+			}
+		}
+		
+		// Create augmented prompt
+		const augmentedData = ragService.createAugmentedPrompt(
+			`Summarize this educational text in 2 sentences`,
+			relevantTexts
+		);
+		
+		const messages: ChatMessage[] = [
+			{ role: "system", content: "You are a helpful educator." },
+			{ role: "user", content: augmentedData.augmentedPrompt }
+		];
+		
+		const response = await handleChatRequest(messages, env);
+		
+		// Extract the response text
+		if (response && typeof response === 'object' && 'response' in response) {
+			const transcript = (response as any).response;
+			logger.info(`Generated RAG-enhanced transcript for page ${pageNumber}`);
+			return transcript;
+		}
+		
+		// Fallback to non-RAG version
+		return generateTranscript(pageText, pageNumber, env);
+	} catch (error) {
+		logger.error(`Error generating RAG transcript for page ${pageNumber}`, error);
+		// Fallback to non-RAG version
+		return generateTranscript(pageText, pageNumber, env);
+	}
+}
+
+/**
+ * Generate MCQs with RAG enhancement
+ */
+export async function generateMcqsWithRAG(
+	pageText: string,
+	pageNumber: number,
+	filename: string,
+	env: Env
+): Promise<McqQuestion[]> {
+	try {
+		// Generate embedding for the current page query
+		const queryPrompt = `Create quiz questions about:\n\n${pageText.substring(0, 1000)}`;
+		const queryEmbedding = await ragService.generateEmbedding(queryPrompt, env);
+		
+		// Query relevant context
+		const pageResults = await vectorService.queryPageTextVector(
+			filename,
+			pageNumber,
+			queryEmbedding.embedding,
+			env,
+			{ topK: 2 }
+		);
+		
+		// Get the stored document for context
+		const document = await vectorService.getDocument(filename, env);
+		
+		// Build relevant context from results
+		const relevantTexts: Array<{ text: string; pageNumber?: number; score: number }> = [];
+		
+		if (document && document.pageChunks[pageNumber]) {
+			relevantTexts.push({
+				text: document.pageChunks[pageNumber].join(' '),
+				pageNumber: pageNumber,
+				score: 1.0
+			});
+		}
+		
+		// Create augmented prompt
+		const augmentedData = ragService.createAugmentedPrompt(
+			`Create 2 MCQs as JSON:\n[{"question":"Q?","options":["A","B","C","D"],"correct":0,"explanation":"Why"}]`,
+			relevantTexts
+		);
+		
+		const messages: ChatMessage[] = [
+			{ role: "system", content: "You respond with JSON only." },
+			{ role: "user", content: augmentedData.augmentedPrompt }
+		];
+		
+		const response = await handleChatRequest(messages, env);
+		
+		// Extract and parse the response
+		let responseText = "";
+		if (response && typeof response === 'object' && 'response' in response) {
+			responseText = (response as any).response;
+		}
+		
+		// Try to parse JSON from the response
+		try {
+			const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+			if (jsonMatch) {
+				const questions = JSON.parse(jsonMatch[0]);
+				if (Array.isArray(questions) && questions.length > 0) {
+					const mcqs = questions.map((q, index) => ({
+						...q,
+						page: pageNumber,
+						id: index,
+					}));
+					logger.info(`Generated ${mcqs.length} RAG-enhanced MCQs for page ${pageNumber}`);
+					return mcqs;
+				}
+			}
+		} catch (parseError) {
+			logger.warn(`Failed to parse RAG MCQ JSON for page ${pageNumber}`, parseError);
+		}
+		
+		// Fallback to non-RAG version
+		return generateMcqs(pageText, pageNumber, env);
+	} catch (error) {
+		logger.error(`Error generating RAG MCQs for page ${pageNumber}`, error);
+		// Fallback to non-RAG version
+		return generateMcqs(pageText, pageNumber, env);
+	}
 }
 
 /**
