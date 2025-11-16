@@ -83,23 +83,26 @@ export async function generateEmbedding(
 	retryCount: number = 0
 ): Promise<EmbeddingResult> {
 	const MAX_RETRIES = 1;
-	const RETRY_DELAY = 500; // 1 second
+	const RETRY_DELAY = 1000; // 1 second
 	
 	try {
 		// Truncate text if too long (embedding models have limits)
-		const truncatedText = text.substring(0, 1024).trim();
+		// const truncatedText = text.substring(0, 1024).trim();
 		
-		if (!truncatedText || truncatedText.length < 10) {
-			throw new Error('Text too short or empty for embedding generation');
-		}
+		// if (!truncatedText || truncatedText.length < 10) {
+		// 	throw new Error('Text too short or empty for embedding generation');
+		// }
 		
-		logger.info(`Generating embedding for text of length ${truncatedText.length}`);
+
+		logger.info(`text output here \n ${text} \n `);
+
+		logger.info(`Generating embedding for text of length ${text.length}`);
 		
 		// Cloudflare AI embedding models expect text as a string or array
 		const response = await env.AI.run(
 			LLM_CONFIG.EMBEDDING_MODEL_ID,
 			{
-				text: truncatedText  // Pass as string instead of array
+				text: text  // Pass as string instead of array
 			}
 		);
 		
@@ -136,7 +139,6 @@ export async function generateEmbedding(
 		}
 		
 		logger.info(`Generated embedding with ${embedding.length} dimensions`);
-		
 		return {
 			embedding,
 			dimensions: embedding.length

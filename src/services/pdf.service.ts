@@ -19,18 +19,23 @@ export async function extractPdfText(pdfBuffer: ArrayBuffer): Promise<PdfExtract
         
         // Extract text with page information
         const pages = await extractText(uint8Array, {
-            mergePages: false // Keep pages separate
+            mergePages: false, // Keep pages separate
+            
         });
-        
+
         logger.info(`PDF parsed successfully: ${pages.totalPages} pages, ${pages.text.length} characters`);
         
         // Combine all page texts
 		// const fullText = pages.text.join('\n\n');
-		const totalPages = pages.totalPages;
+		// const totalPages = pages.totalPages;
+
+        // Trim to first 2 pages
+        const trimmedPages = pages.text.slice(0, 2);
+        const totalPages = pages.totalPages;
         
         return {
             numPages: totalPages,
-            pages: pages.text // Add parsed pages
+            pages: trimmedPages // Add parsed pages
         };
     } catch (error) {
         logger.error('Error extracting PDF text with unpdf', error);
