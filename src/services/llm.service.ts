@@ -32,7 +32,7 @@ export async function generateTranscript(
 	env: Env
 ): Promise<string> {
 	try {
-		const promptA = `Summarize this educational text in 2 sentences:\n\n${pageText}`;
+		const promptA = `Summarize this educational text in a few sentences:\n\n${pageText}`;
 
 		const messages: ChatMessage[] = [
 			{ role: "system", content: "You are a helpful educator." },
@@ -70,7 +70,7 @@ export async function generateMcqs(
 	env: Env
 ): Promise<McqQuestion[]> {
 	try {
-		const promptB = `Create 2 MCQs as JSON:\n[{"question":"Q?","options":["A","B","C","D"],"correct":0,"explanation":"Why"}]\n\nText: ${pageText}`;
+		const promptB = `Create 5 MCQs as JSON:\n[{"question":"Q?","options":["A","B","C","D"],"correct":0,"explanation":"Why"}]\n\nText: ${pageText}`;
 
 		const messages: ChatMessage[] = [
 			{ role: "system", content: "You respond with JSON only." },
@@ -78,28 +78,42 @@ export async function generateMcqs(
 		];
 
 		const response = await generateChatCompletion(messages, env);
-		const result = await response.json() as { response?: string };
+		const result = await response.json() as { response?: any }; // Change from string to any
 
-		// Workers AI returns JSON; extract the text from the 'response' field
-		const responseText = result.response as string;
-		console.info(`RAW TEXT OUTPUT:\n${responseText}\n`);
+		// Workers AI may return JSON array directly or as a string
+		const responseData = result.response;
 
+
+		// console.info(`Response structure:`, JSON.stringify(result, null, 2));
+		// console.info(`Response type: ${typeof responseData}, Is Array: ${Array.isArray(responseData)}`);
 		// Try to parse JSON from the response
 		try {
-			// Extract JSON array from response (may be wrapped in markdown or text)
-			const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-			if (jsonMatch) {
-				const questions = JSON.parse(jsonMatch[0]);
-				if (Array.isArray(questions) && questions.length > 0) {
-					// Add page number to each question
-					const mcqs = questions.map((q, index) => ({
-						...q,
-						page: pageNumber,
-						id: index,
-					}));
-					logger.info(`Generated ${mcqs.length} MCQs for page ${pageNumber}`);
-					return mcqs;
+			let questions: any[];
+			
+			// Check if response is already an array
+			if (Array.isArray(responseData)) {
+				questions = responseData;
+			} else if (typeof responseData === 'string') {
+				// Extract JSON array from string response (may be wrapped in markdown or text)
+				const jsonMatch = responseData.match(/\[[\s\S]*\]/);
+				if (jsonMatch) {
+					questions = JSON.parse(jsonMatch[0]);
+				} else {
+					throw new Error('No JSON array found in string response');
 				}
+			} else {
+				throw new Error(`Unexpected response type: ${typeof responseData}`);
+			}
+			
+			if (Array.isArray(questions) && questions.length > 0) {
+				// Add page number to each question
+				const mcqs = questions.map((q, index) => ({
+					...q,
+					page: pageNumber,
+					id: index,
+				}));
+				logger.info(`Generated ${mcqs.length} MCQs for page ${pageNumber}`);
+				return mcqs;
 			}
 			
 			logger.warn(`No valid JSON array found in MCQ response for page ${pageNumber}`);

@@ -24,8 +24,6 @@ export async function extractPdfText(pdfBuffer: ArrayBuffer): Promise<PdfExtract
         
         // logger.info(`PDF parsed successfully: ${pages.totalPages} pages, ${pages.text.length} characters`);
         
-        // Combine all page texts
-		// const fullText = pages.text.join('\n\n');
 		const trimmedPages = pages.text.slice(0, 1);
         const totalPages = trimmedPages.length;
          // Trim to first 2 pages
@@ -36,7 +34,7 @@ export async function extractPdfText(pdfBuffer: ArrayBuffer): Promise<PdfExtract
          
         return {
             numPages: totalPages,
-            pages: ["TEXT FOR TESTING PURPOSES"] // Add parsed pages
+            pages: pages.text // Add parsed pages
         };
     } catch (error) {
         logger.error('Error extracting PDF text with unpdf', error);
