@@ -41,15 +41,6 @@ export async function generateTranscript(
 
 		logger.info(`Sent response`);
 
-		console.info("Chat request messages structure:", {
-			messageCount: messages.length,
-			messages: messages.map((msg, index) => ({
-				index,
-				role: msg.role,
-				contentLength: msg.content.length,
-				contentPreview: msg.content.substring(0, 100),
-			})),
-		});
 		const response = await generateChatCompletion(messages, env);
 		logger.info(`Got response`);
 		const result = await response.json() as { response?: string };
