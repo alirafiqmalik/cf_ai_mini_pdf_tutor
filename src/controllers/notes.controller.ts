@@ -21,7 +21,7 @@ const notes = new Map<string, Note[]>();
 export async function handleSaveNote(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -85,7 +85,7 @@ export async function handleSaveNote(
 export async function handleGetNotes(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {

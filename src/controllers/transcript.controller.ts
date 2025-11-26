@@ -22,7 +22,7 @@ const fileMetadata = new Map<string, any>();
 export async function handleGetTranscript(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {

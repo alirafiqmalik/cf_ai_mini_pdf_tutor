@@ -20,7 +20,7 @@ const logger = createLogger('MainApp');
  * Entry point for all HTTP requests
  */
 export default {
-	async fetch(request: Request, env: Env): Promise<Response> {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url);
 		const corsHeaders = getCorsHeaders();
 
@@ -38,20 +38,20 @@ export default {
 
 			if (route) {
 				// Execute route handler
-				const response = await route.handler(request, env, corsHeaders);
+				const response = await route.handler(request, env, ctx, corsHeaders);
 				// Add CORS headers to response
-				return addCorsHeaders(response, corsHeaders);
+				return addCorsHeaders(response);
 			}
 
 			// No route found
 			logger.warn(`Route not found: ${request.method} ${url.pathname}`);
 			const response = createNotFoundResponse('Route not found');
-			return addCorsHeaders(response, corsHeaders);
+			return addCorsHeaders(response);
 
 		} catch (error) {
 			// Global error handler
 			const response = handleError(error);
-			return addCorsHeaders(response, corsHeaders);
+			return addCorsHeaders(response);
 		}
 	},
 };

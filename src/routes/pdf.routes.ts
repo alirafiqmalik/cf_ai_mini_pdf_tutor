@@ -12,6 +12,7 @@ export interface Route {
 	handler: (
 		request: Request,
 		env: Env,
+		ctx: ExecutionContext,
 		corsHeaders: Record<string, string>
 	) => Promise<Response>;
 }

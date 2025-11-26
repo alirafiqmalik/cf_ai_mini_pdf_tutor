@@ -21,7 +21,7 @@ const logger = createLogger('PDFController');
 export async function handleUpload(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -56,17 +56,12 @@ export async function handleUpload(
 			originalName: file.name
 		};
 		
-		await storageService.storeMetadata(filename, metadata, env);
-		
-		// // Schedule PDF processing in background
-		// ctx.waitUntil(processPdf(filename, fileBuffer, metadata, env));
-		
-		
-		// Complete PDF processing before returning		
-		// TODO: Update `Uploading Bar` on upload page to show processing bar
-		await processPdf(filename, fileBuffer, metadata, env);
-		// ctx.waitUntil(processPdf(filename, fileBuffer, metadata, env));
-		logger.info(`PDF uploaded successfully: ${filename}`);
+	await storageService.storeMetadata(filename, metadata, env);
+	
+	// Schedule PDF processing in background
+	ctx.waitUntil(processPdf(filename, fileBuffer, metadata, env));
+	
+	logger.info(`PDF uploaded successfully: ${filename}`);
 		
 		return createJsonResponse({
 			success: true,
@@ -96,19 +91,35 @@ async function processPdf(
     metadata: UploadedFile,
     env: Env
 ): Promise<void> {
+    // Progress tracking for interval logging
+    const progressStatus = {
+        currentPage: 0,
+        totalPages: 0,
+        stage: 'initializing'
+    };
+    
+    // Set up interval-based progress logging (every 10 seconds)
+    const progressInterval = setInterval(() => {
+        console.info(`[Background Processing] ${filename} - Stage: ${progressStatus.stage}, Page: ${progressStatus.currentPage}/${progressStatus.totalPages}`);
+    }, 10000);
+    
     try {
         logger.info(`Starting processing for: ${filename}`);
+        progressStatus.stage = 'extracting';
         
         // Extract text from PDF using unpdf
         const { pages: pages, numPages: numPages  } = await pdfService.extractPdfText(fileBuffer);
         logger.info(`Extracted ${numPages} pages from ${filename}`);
-		
+        
+        progressStatus.totalPages = numPages;
+        progressStatus.stage = 'generating';
         
         // ===== GENERATE TRANSCRIPTS AND MCQS WITH TRIMMED TEXT =====
         const allTranscripts: Record<number, string> = {};
         const allMcqs: Record<string, any[]> = {};
         
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+            progressStatus.currentPage = pageNum;
             const pageText = pages[pageNum - 1];
             logger.info(`awaiting transcript ${pageNum}`);
             // Generate transcript with trimmed text
@@ -131,13 +142,20 @@ async function processPdf(
             logger.info(`Processed page ${pageNum}/${numPages} for ${filename}`);
         }
         
+        progressStatus.stage = 'storing';
         // Store results in R2
         await storageService.storeTranscript(filename, allTranscripts, env);
         await storageService.storeMcqs(filename, allMcqs, env);
         
+        progressStatus.stage = 'completed';
         logger.info(`Processing completed for: ${filename}`);
     } catch (error) {
+        progressStatus.stage = 'failed';
         logger.error(`Processing failed for ${filename}`, error);
+    } finally {
+        // Clean up interval
+        clearInterval(progressInterval);
+        console.info(`[Background Processing] ${filename} - Final status: ${progressStatus.stage}, Processed ${progressStatus.currentPage}/${progressStatus.totalPages} pages`);
     }
 }
 
@@ -147,7 +165,7 @@ async function processPdf(
 export async function handleGetPdf(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -198,7 +216,7 @@ export async function handleGetPdf(
 export async function handleListPdfs(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -222,7 +240,7 @@ export async function handleListPdfs(
 export async function handleDeletePdf(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {

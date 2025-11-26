@@ -21,7 +21,7 @@ const scores = new Map<string, number>();
 export async function handleGetScore(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -67,7 +67,7 @@ export async function handleGetScore(
 export async function handleSaveScore(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {

@@ -22,18 +22,18 @@ export async function extractPdfText(pdfBuffer: ArrayBuffer): Promise<PdfExtract
             mergePages: false // Keep pages separate
         });
         
-        // logger.info(`PDF parsed successfully: ${pages.totalPages} pages, ${pages.text.length} characters`);
+        logger.info(`PDF parsed successfully: ${pages.totalPages} pages, ${pages.text.length} characters`);
         
-		const trimmedPages = pages.text.slice(0, 1);
-        const totalPages = trimmedPages.length;
+		// const trimmedPages = pages.text.slice(0, 1);
+        // const totalPages = trimmedPages.length;
          // Trim to first 2 pages
          
         //  const totalPages = pages.totalPages;
 
-        logger.info(`PDF parsed successfully: ${totalPages} pages, ${trimmedPages[0].length} characters`);
+        // logger.info(`PDF parsed successfully: ${totalPages} pages, ${trimmedPages[0].length} characters`);
          
         return {
-            numPages: totalPages,
+            numPages: pages.totalPages,
             pages: pages.text // Add parsed pages
         };
     } catch (error) {

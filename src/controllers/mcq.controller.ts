@@ -21,7 +21,7 @@ const fileMetadata = new Map<string, any>();
 export async function handleGetMcqs(
 	request: Request,
 	env: Env,
-
+	ctx: ExecutionContext,
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
