@@ -6,9 +6,9 @@
  * and routes them to appropriate controllers.
  */
 
-import { Env, ExecutionContext } from './types';
+import { Env } from './types'
 import { findRoute } from './routes';
-import { getCorsHeaders, handleCorsPreFlight, isCorsPreFlight } from './middleware/cors.middleware';
+import { addCorsHeaders, getCorsHeaders, handleCorsPreflightRequest, isCorsPreFlight } from './middleware/cors.middleware';
 import { handleError } from './middleware/error.middleware';
 import { createNotFoundResponse } from './utils/response.utils';
 import { createLogger } from './utils/logger.utils';
@@ -20,13 +20,13 @@ const logger = createLogger('MainApp');
  * Entry point for all HTTP requests
  */
 export default {
-	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
 		const corsHeaders = getCorsHeaders();
 
 		// Handle CORS preflight requests
 		if (isCorsPreFlight(request)) {
-			return handleCorsPreFlight();
+			return handleCorsPreflightRequest();
 		}
 
 		try {
@@ -38,16 +38,20 @@ export default {
 
 			if (route) {
 				// Execute route handler
-				return await route.handler(request, env, ctx, corsHeaders);
+				const response = await route.handler(request, env, corsHeaders);
+				// Add CORS headers to response
+				return addCorsHeaders(response, corsHeaders);
 			}
 
 			// No route found
 			logger.warn(`Route not found: ${request.method} ${url.pathname}`);
-			return createNotFoundResponse('Route not found', corsHeaders);
+			const response = createNotFoundResponse('Route not found');
+			return addCorsHeaders(response, corsHeaders);
 
 		} catch (error) {
 			// Global error handler
-			return handleError(error, corsHeaders);
+			const response = handleError(error);
+			return addCorsHeaders(response, corsHeaders);
 		}
 	},
 };

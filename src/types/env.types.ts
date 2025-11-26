@@ -1,17 +1,16 @@
 /**
- * Environment and Configuration Types
+ * Environment and configuration types
  */
 
-/// <reference path="./cloudflare.d.ts" />
-
 export interface Env {
-	AI: any; // Cloudflare Workers AI binding
-	pdf_tutor_storage: R2Bucket;
-	DB: D1Database; // D1 Database binding for document storage
-	VECTOR_INDEX: VectorizeIndex; // Vectorize index binding
+	/**
+	 * Binding for the Workers AI API.
+	 */
+	AI: Ai;
+
+	/**
+	 * Binding for static assets.
+	 */
+	// ASSETS: { fetch: (request: Request) => Promise<Response> };
 }
 
-export interface ExecutionContext {
-	waitUntil(promise: Promise<any>): void;
-	passThroughOnException(): void;
-}

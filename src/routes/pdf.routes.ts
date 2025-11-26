@@ -3,7 +3,7 @@
  * Routes for PDF upload, retrieval, listing, and deletion
  */
 
-import { Env, ExecutionContext } from '../types';
+
 import * as pdfController from '../controllers/pdf.controller';
 
 export interface Route {
@@ -12,7 +12,6 @@ export interface Route {
 	handler: (
 		request: Request,
 		env: Env,
-		ctx: ExecutionContext,
 		corsHeaders: Record<string, string>
 	) => Promise<Response>;
 }

@@ -8,9 +8,11 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2025-11-05",
 	"compatibility_flags": [
-		"nodejs_compat"
+		"nodejs_compat", 
+		"global_fetch_strictly_public"
 	],
 	"assets": {
+		"binding": "ASSETS",
 		// The path to the directory containing the `index.html` file to be served at `/`
 		"directory": "./public"
 	},
@@ -23,26 +25,12 @@
 	},
 	"r2_buckets": [
 		{
-			"bucket_name": "pdf-tutor-storage",
+			"bucket_name": "pdf-store",
 			"binding": "pdf_tutor_storage",
 			// "remote": true,
 			"preview_bucket_name": "pdf-tutor-storage"
 		}
-	],
-	"vectorize": [
-		{
-			"binding": "VECTORIZE",
-			"remote": true,
-			"index_name": "vector-index"
-		}
-	],
-	"d1_databases": [
-		{
-			"binding": "database",
-			"database_name": "database",
-			"database_id": "8a894d0e-9d63-4187-88eb-7233afdb142a"
-		}
-	]
+	],"upload_source_maps": true
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

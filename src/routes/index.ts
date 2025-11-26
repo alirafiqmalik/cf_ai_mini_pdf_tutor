@@ -2,7 +2,6 @@
  * Route Registry
  * Central registry for all routes
  */
-
 import { Route } from './pdf.routes';
 import { pdfRoutes } from './pdf.routes';
 import { transcriptRoutes } from './transcript.routes';

@@ -3,22 +3,18 @@
  * Standardized response builders for consistent API responses
  */
 
-import { ApiResponse } from '../types';
+import { ApiResponse, ErrorResponse } from '../types';
 
 /**
  * Create a standardized JSON response
  */
 export function createJsonResponse<T = any>(
 	data: T,
-	status: number = 200,
-	corsHeaders: Record<string, string> = {}
+	status: number = 200
 ): Response {
 	return new Response(JSON.stringify(data), {
 		status,
-		headers: {
-			...corsHeaders,
-			'Content-Type': 'application/json',
-		}
+		headers: { 'Content-Type': 'application/json' },
 	});
 }
 
@@ -26,14 +22,13 @@ export function createJsonResponse<T = any>(
  * Create a success response
  */
 export function createSuccessResponse<T = any>(
-	data: T,
-	corsHeaders: Record<string, string> = {}
+	data: T
 ): Response {
 	const response: ApiResponse<T> = {
 		success: true,
 		data
 	};
-	return createJsonResponse(response, 200, corsHeaders);
+	return createJsonResponse(response, 200);
 }
 
 /**
@@ -41,32 +36,34 @@ export function createSuccessResponse<T = any>(
  */
 export function createErrorResponse(
 	error: string,
-	status: number = 400,
-	corsHeaders: Record<string, string> = {}
+	status: number = 500,
+	details?: string
 ): Response {
-	const response: ApiResponse = {
-		success: false,
-		error
-	};
-	return createJsonResponse(response, status, corsHeaders);
+	const body: ErrorResponse = { error, details };
+	return createJsonResponse(body, status);
 }
 
 /**
  * Create a not found response
  */
 export function createNotFoundResponse(
-	message: string = 'Resource not found',
-	corsHeaders: Record<string, string> = {}
+	message: string = 'Resource not found'
 ): Response {
-	return createErrorResponse(message, 404, corsHeaders);
+	return createErrorResponse(message, 404);
 }
 
 /**
  * Create a server error response
  */
 export function createServerErrorResponse(
-	message: string = 'Internal server error',
-	corsHeaders: Record<string, string> = {}
+	message: string = 'Internal server error'
 ): Response {
-	return createErrorResponse(message, 500, corsHeaders);
+	return createErrorResponse(message, 500);
+}
+
+/**
+ * Create a method not allowed response
+ */
+export function methodNotAllowed(): Response {
+	return new Response('Method not allowed', { status: 405 });
 }

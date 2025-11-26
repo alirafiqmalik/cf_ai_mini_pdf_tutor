@@ -3,7 +3,7 @@
  * Handles transcript retrieval
  */
 
-import { Env, ExecutionContext } from '../types';
+
 import * as storageService from '../services/storage.service';
 import * as validationService from '../services/validation.service';
 import { createJsonResponse, createErrorResponse, createNotFoundResponse } from '../utils/response.utils';
@@ -22,7 +22,7 @@ const fileMetadata = new Map<string, any>();
 export async function handleGetTranscript(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -58,20 +58,20 @@ export async function handleGetTranscript(
 			page: pageNumber,
 			transcript,
 			source: 'r2'
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('Get transcript error', error);
 		
 		if (error instanceof NotFoundError) {
-			return createNotFoundResponse(error.message, corsHeaders);
+			return createNotFoundResponse(error.message);
 		}
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to retrieve transcript', 500, corsHeaders);
+		return createErrorResponse('Failed to retrieve transcript', 500);
 	}
 }
 

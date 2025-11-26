@@ -3,13 +3,11 @@
  * Handles PDF upload, retrieval, listing, and deletion
  */
 
-import { Env, ExecutionContext, UploadedFile } from '../types';
+import { Env, UploadedFile } from '../types';
 import * as storageService from '../services/storage.service';
 import * as pdfService from '../services/pdf.service';
 import * as llmService from '../services/llm.service';
 import * as validationService from '../services/validation.service';
-import * as ragService from '../services/rag.service';
-import * as vectorService from '../services/vector.service';
 import { createJsonResponse, createErrorResponse, createNotFoundResponse } from '../utils/response.utils';
 import { validateFilename } from '../utils/storage.utils';
 import { ValidationError, NotFoundError } from '../middleware/error.middleware';
@@ -23,7 +21,7 @@ const logger = createLogger('PDFController');
 export async function handleUpload(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -66,8 +64,8 @@ export async function handleUpload(
 		
 		// Complete PDF processing before returning		
 		// TODO: Update `Uploading Bar` on upload page to show processing bar
-		// await processPdf(filename, fileBuffer, metadata, env);
-		ctx.waitUntil(processPdf(filename, fileBuffer, metadata, env));
+		await processPdf(filename, fileBuffer, metadata, env);
+		// ctx.waitUntil(processPdf(filename, fileBuffer, metadata, env));
 		logger.info(`PDF uploaded successfully: ${filename}`);
 		
 		return createJsonResponse({
@@ -76,21 +74,21 @@ export async function handleUpload(
 			timestamp,
 			size: file.size,
 			message: 'PDF uploaded successfully'
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('Upload error', error);
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to upload PDF', 500, corsHeaders);
+		return createErrorResponse('Failed to upload PDF', 500);
 	}
 }
 
 /**
- * Process PDF in background (generate transcripts and MCQs with RAG)
+ * Process PDF in background (generate transcripts and MCQs)
  */
 async function processPdf(
     filename: string,
@@ -99,61 +97,33 @@ async function processPdf(
     env: Env
 ): Promise<void> {
     try {
-        logger.info(`Starting RAG-enhanced processing for: ${filename}`);
+        logger.info(`Starting processing for: ${filename}`);
         
         // Extract text from PDF using unpdf
         const { pages: pages, numPages: numPages  } = await pdfService.extractPdfText(fileBuffer);
         logger.info(`Extracted ${numPages} pages from ${filename}`);
+		
         
-        // ===== RAG WORKFLOW STEP 1: Process document into chunks =====
-        const chunkedDoc = ragService.processDocument(filename, pages);
-        logger.info(`Chunked document: ${chunkedDoc.totalChunks} chunks across ${chunkedDoc.totalPages} pages`);
-        
-        // ===== RAG WORKFLOW STEP 2: Generate embeddings =====
-        // Generate full text embedding
-        // const fullTextEmbedding = await ragService.generateFullTextEmbedding(
-        //     chunkedDoc.fullText,
-        //     env
-        // );
-        logger.info('Generated full text embedding');
-        
-        // Generate page embeddings
-        const pageEmbeddings = await ragService.generatePageEmbeddings(
-            chunkedDoc.pageChunks,
-            env
-        );
-        logger.info(`Generated ${Object.keys(pageEmbeddings).length} page embeddings`);
-        
-        // ===== RAG WORKFLOW STEP 3: Store in D1 database =====
-        await vectorService.storeDocument(chunkedDoc, env);
-        logger.info('Stored document in D1 database');
-        
-        // ===== RAG WORKFLOW STEP 4: Upsert vectors to Vectorize =====
-        // await vectorService.upsertFullTextVector(filename, fullTextEmbedding, env);
-        await vectorService.upsertPageVectors(filename, pageEmbeddings, env);
-        logger.info('Upserted vectors to Vectorize index');
-        
-        // ===== GENERATE TRANSCRIPTS AND MCQS WITH RAG =====
+        // ===== GENERATE TRANSCRIPTS AND MCQS WITH TRIMMED TEXT =====
         const allTranscripts: Record<number, string> = {};
         const allMcqs: Record<string, any[]> = {};
         
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
             const pageText = pages[pageNum - 1];
-            
-            // Generate transcript with RAG enhancement
-            const transcript = await llmService.generateTranscriptWithRAG(
+            logger.info(`awaiting transcript ${pageNum}`);
+            // Generate transcript with trimmed text
+            const transcript = await llmService.generateTranscript(
                 pageText,
                 pageNum,
-                filename,
                 env
             );
+			logger.info(`Got transcript  ${pageNum}`);
             allTranscripts[pageNum] = transcript;
             
-            // Generate MCQs with RAG enhancement
-            const mcqs = await llmService.generateMcqsWithRAG(
+            // Generate MCQs with trimmed text
+            const mcqs = await llmService.generateMcqs(
                 pageText,
                 pageNum,
-                filename,
                 env
             );
             allMcqs[pageNum.toString()] = mcqs;
@@ -165,9 +135,9 @@ async function processPdf(
         await storageService.storeTranscript(filename, allTranscripts, env);
         await storageService.storeMcqs(filename, allMcqs, env);
         
-        logger.info(`RAG-enhanced processing completed for: ${filename}`);
+        logger.info(`Processing completed for: ${filename}`);
     } catch (error) {
-        logger.error(`RAG processing failed for ${filename}`, error);
+        logger.error(`Processing failed for ${filename}`, error);
     }
 }
 
@@ -177,7 +147,7 @@ async function processPdf(
 export async function handleGetPdf(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -211,14 +181,14 @@ export async function handleGetPdf(
 		logger.error('Get PDF error', error);
 		
 		if (error instanceof NotFoundError) {
-			return createNotFoundResponse(error.message, corsHeaders);
+			return createNotFoundResponse(error.message);
 		}
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to retrieve PDF', 500, corsHeaders);
+		return createErrorResponse('Failed to retrieve PDF', 500);
 	}
 }
 
@@ -228,7 +198,7 @@ export async function handleGetPdf(
 export async function handleListPdfs(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -238,11 +208,11 @@ export async function handleListPdfs(
 			success: true,
 			count: files.length,
 			files
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('List PDFs error', error);
-		return createErrorResponse('Failed to list PDFs', 500, corsHeaders);
+		return createErrorResponse('Failed to list PDFs', 500);
 	}
 }
 
@@ -252,7 +222,7 @@ export async function handleListPdfs(
 export async function handleDeletePdf(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -272,15 +242,15 @@ export async function handleDeletePdf(
 		return createJsonResponse({
 			success: true,
 			message: 'PDF deleted successfully'
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('Delete PDF error', error);
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to delete PDF', 500, corsHeaders);
+		return createErrorResponse('Failed to delete PDF', 500);
 	}
 }

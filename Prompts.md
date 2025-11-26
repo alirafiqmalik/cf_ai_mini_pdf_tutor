@@ -385,3 +385,9 @@ You are given access to the backend of a website in cloudfare wrangler setup env
     queryFullTextVector(id=filename)
 
     iv. Add function that uses wither full text or poage text (useing Vectors) for running LLMs with "augmented" prompts that includes both the original question and the relevant text chunks found in the previous step. Then, modofy generateTranscript and generateMCQs code to use these "augmented" prompts or RAG style features to geenaret responses.
+
+
+
+
+
+

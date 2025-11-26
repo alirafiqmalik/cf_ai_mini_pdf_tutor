@@ -13,6 +13,13 @@ export interface ChatMessage {
 }
 
 /**
+ * Chat API request body
+ */
+export interface ChatRequest {
+	messages: ChatMessage[];
+}
+
+/**
  * Upload API response
  */
 export interface UploadResponse {
@@ -74,3 +81,13 @@ export interface ScoreResponse {
 	filename: string;
 	score: number;
 }
+
+
+/**
+ * Generic API error response
+ */
+export interface ErrorResponse {
+	error: string;
+	details?: string;
+}
+

@@ -3,7 +3,7 @@
  * Handles note CRUD operations
  */
 
-import { Env, ExecutionContext, Note } from '../types';
+import { Env, Note } from '../types';
 import * as validationService from '../services/validation.service';
 import { createJsonResponse, createErrorResponse } from '../utils/response.utils';
 import { ValidationError } from '../middleware/error.middleware';
@@ -21,7 +21,7 @@ const notes = new Map<string, Note[]>();
 export async function handleSaveNote(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -66,16 +66,16 @@ export async function handleSaveNote(
 			success: true,
 			message: 'Note saved successfully',
 			note
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('Save note error', error);
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to save note', 500, corsHeaders);
+		return createErrorResponse('Failed to save note', 500);
 	}
 }
 
@@ -85,7 +85,7 @@ export async function handleSaveNote(
 export async function handleGetNotes(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -113,15 +113,15 @@ export async function handleGetNotes(
 			filename,
 			count: fileNotes.length,
 			notes: fileNotes
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('Get notes error', error);
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to retrieve notes', 500, corsHeaders);
+		return createErrorResponse('Failed to retrieve notes', 500);
 	}
 }

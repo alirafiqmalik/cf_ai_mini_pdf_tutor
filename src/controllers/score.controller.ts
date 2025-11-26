@@ -3,7 +3,7 @@
  * Handles score management
  */
 
-import { Env, ExecutionContext } from '../types';
+
 import * as validationService from '../services/validation.service';
 import { createJsonResponse, createErrorResponse } from '../utils/response.utils';
 import { ValidationError } from '../middleware/error.middleware';
@@ -21,7 +21,7 @@ const scores = new Map<string, number>();
 export async function handleGetScore(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -48,16 +48,16 @@ export async function handleGetScore(
 			success: true,
 			filename,
 			score
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('Get score error', error);
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to retrieve score', 500, corsHeaders);
+		return createErrorResponse('Failed to retrieve score', 500);
 	}
 }
 
@@ -67,7 +67,7 @@ export async function handleGetScore(
 export async function handleSaveScore(
 	request: Request,
 	env: Env,
-	ctx: ExecutionContext,
+
 	corsHeaders: Record<string, string>
 ): Promise<Response> {
 	try {
@@ -98,15 +98,15 @@ export async function handleSaveScore(
 			message: 'Score saved successfully',
 			filename: filename,
 			score: data.score
-		}, 200, corsHeaders);
+		}, 200);
 		
 	} catch (error) {
 		logger.error('Save score error', error);
 		
 		if (error instanceof ValidationError) {
-			return createErrorResponse(error.message, 400, corsHeaders);
+			return createErrorResponse(error.message, 400);
 		}
 		
-		return createErrorResponse('Failed to save score', 500, corsHeaders);
+		return createErrorResponse('Failed to save score', 500);
 	}
 }
